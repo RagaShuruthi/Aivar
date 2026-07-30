@@ -1,9 +1,10 @@
 import streamlit as st
 import time
-from app.agent.customer_agent import AICustomerAgent
-from app.db.session import SessionLocal
 
 def render_assistant_page():
+    from app.agent.customer_agent import AICustomerAgent
+    from app.db.session import SessionLocal
+
     st.markdown('<div class="gradient-title">Enterprise AI Governance Platform</div>', unsafe_allow_html=True)
     st.subheader("🤖 AI Customer Assistant")
     st.divider()
