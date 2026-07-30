@@ -5,6 +5,7 @@ from app.config import settings
 from app.db.session import engine, Base
 import app.db.models  # Ensures all ORM models are registered before metadata creation
 from app.api.crm_routes import router as crm_router
+from app.api.proxy_routes import router as proxy_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +39,7 @@ def create_application() -> FastAPI:
 
     # Include API Routers
     app.include_router(crm_router, prefix=settings.API_V1_STR)
+    app.include_router(proxy_router, prefix=settings.API_V1_STR)
 
     @app.get("/", tags=["Root"])
     async def root():
