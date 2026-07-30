@@ -3,11 +3,21 @@ import re
 import json
 from typing import Dict, Any, Optional
 
+# Try modern google.genai SDK first, then legacy google.generativeai
+HAS_GENAI = False
+GENAI_TYPE = None
+
 try:
-    import google.generativeai as genai
+    from google import genai
     HAS_GENAI = True
+    GENAI_TYPE = "genai"
 except ImportError:
-    HAS_GENAI = False
+    try:
+        import google.generativeai as genai_legacy
+        HAS_GENAI = True
+        GENAI_TYPE = "legacy"
+    except ImportError:
+        HAS_GENAI = False
 
 class GeminiLLM:
     """
@@ -25,8 +35,11 @@ class GeminiLLM:
 
         if HAS_GENAI and self.api_key:
             try:
-                genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel(self.model_name)
+                if GENAI_TYPE == "genai":
+                    self.client = genai.Client(api_key=self.api_key)
+                else:
+                    genai_legacy.configure(api_key=self.api_key)
+                    self.model = genai_legacy.GenerativeModel(self.model_name)
                 self.is_configured = True
             except Exception:
                 self.is_configured = False
@@ -48,8 +61,16 @@ class GeminiLLM:
                     "Output STRICT raw JSON with keys: 'tool_name', 'operation', 'target_customer_id', 'payload_data'.\n"
                     "Do NOT include markdown formatting or extra text."
                 )
-                response = self.model.generate_content(f"{system_instruction}\nUser Prompt: {prompt}")
-                text = response.text.strip()
+                full_prompt = f"{system_instruction}\nUser Prompt: {prompt}"
+                if GENAI_TYPE == "genai":
+                    res = self.client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=full_prompt
+                    )
+                    text = res.text.strip()
+                else:
+                    response = self.model.generate_content(full_prompt)
+                    text = response.text.strip()
                 # Clean JSON markdown fences if present
                 cleaned_text = re.sub(r"^```json\s*", "", text)
                 cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
