@@ -35,11 +35,12 @@ class GeminiService:
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        self.model_name = "gemini-1.5-flash"
+        self.model_name = "gemini-2.0-flash"
         self.is_configured = False
 
         if HAS_GENAI and self.api_key:
             try:
+                os.environ["GOOGLE_API_KEY"] = self.api_key
                 if GENAI_TYPE == "genai":
                     self.client = genai.Client(api_key=self.api_key)
                 else:
@@ -90,7 +91,7 @@ class GeminiService:
                 intent = json.loads(cleaned)
                 return intent
             except Exception as e:
-                print(f"[WARNING] Gemini Intent Extraction error: {e}. Falling back to NLP regex parser.")
+                print(f"[WARNING] Gemini Intent Extraction fallback: {e}")
 
         # Fallback Deterministic NLP Parser
         return self._fallback_intent_parser(prompt, default_customer_id, default_agent)
@@ -186,7 +187,7 @@ class GeminiService:
                 return f"Customer profile for {crm_data.get('name', 'Customer')} (#{crm_data.get('id')}) retrieved successfully. Status: {crm_data.get('status')}, Email: {crm_data.get('email')}."
             return f"Action processed successfully: {reason}"
         else:
-            return f"🚫 Request Blocked: {reason} No action has been performed on the CRM database."
+            return f"Request Blocked: {reason} No action has been performed on the CRM database."
 
 # Singleton Gemini Service Instance
 gemini_service = GeminiService()
