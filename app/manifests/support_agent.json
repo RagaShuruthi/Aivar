@@ -1,0 +1,8 @@
+{
+    "agent_id": "support_agent",
+    "tool_name": "crm",
+    "allowed_operations": [
+        "read"
+    ],
+    "data_scope": "session_customer"
+}

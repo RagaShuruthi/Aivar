@@ -1,0 +1,10 @@
+{
+    "agent_id": "admin_agent",
+    "tool_name": "crm",
+    "allowed_operations": [
+        "read",
+        "update",
+        "delete"
+    ],
+    "data_scope": "global"
+}

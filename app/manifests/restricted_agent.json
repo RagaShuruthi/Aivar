@@ -1,0 +1,6 @@
+{
+    "agent_id": "restricted_agent",
+    "tool_name": "crm",
+    "allowed_operations": [],
+    "data_scope": "none"
+}
