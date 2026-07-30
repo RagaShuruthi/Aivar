@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from frontend.theme import apply_production_theme
 from frontend.components import render_left_sidebar, render_execution_trace, render_customer_card
+from frontend.pages.login import render_login_page, auto_login_from_query_params
 
 API_BASE_URL = "http://127.0.0.1:8000/api/v1"
 
@@ -16,7 +17,16 @@ st.set_page_config(
 # Apply Theme
 apply_production_theme()
 
-# Session State Initialization
+# Auto-restore session from query params if available
+auto_login_from_query_params()
+
+# Check Authentication State
+if not st.session_state.get("authenticated", False):
+    # Render Login Page FIRST
+    render_login_page()
+    st.stop()
+
+# Session State Initialization for Chat
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -26,32 +36,43 @@ if "last_pipeline_response" not in st.session_state:
 # Render Left Sidebar User Controls & Permission Status
 active_user = render_left_sidebar()
 
+# Logout Button in Sidebar
+st.sidebar.divider()
+if st.sidebar.button("🚪 Logout", use_container_width=True, key="sidebar_logout_btn"):
+    st.session_state.authenticated = False
+    st.session_state.user = None
+    st.query_params.clear()
+    st.rerun()
+
 # Main 2-Column Layout (Center Chat + Right Sidebar Trace Visualizer)
 col_chat, col_trace = st.columns([2, 1])
 
 # --- CENTER COLUMN: CHAT INTERFACE ---
 with col_chat:
     st.markdown('<div class="main-title">🛡️ Agentic AI CRM Assistant</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle">Zero-Trust CRM Automation Powered by Permission Proxy & Gemini 2.5 Flash</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="subtitle">Logged in as <b>{active_user["name"]}</b> (Customer #{active_user["customer_id"]}) • Role: <b>{active_user["role_title"]}</b></div>',
+        unsafe_allow_html=True
+    )
 
     # Quick Test Chips Bar
     st.markdown("**⚡ Try Sample Natural Language Commands:**")
     q1, q2, q3, q4 = st.columns(4)
     prompt_to_send = None
 
-    if q1.button("👤 Show customer 101", use_container_width=True, key="btn_sample_101"):
-        prompt_to_send = "Show customer 101."
-    if q2.button("✏️ Update 105 phone", use_container_width=True, key="btn_sample_phone"):
+    if q1.button(f"👤 Show my profile (#{active_user['customer_id']})", use_container_width=True, key="btn_sample_own"):
+        prompt_to_send = f"Show customer {active_user['customer_id']} profile."
+    if q2.button("🔍 Read customer 105", use_container_width=True, key="btn_sample_105"):
+        prompt_to_send = "Show customer 105 profile."
+    if q3.button("✏️ Update 105 phone", use_container_width=True, key="btn_sample_update"):
         prompt_to_send = "Update customer 105 phone number to 9876543210."
-    if q3.button("❌ Delete customer 102", use_container_width=True, key="btn_sample_delete"):
+    if q4.button("❌ Delete customer 102", use_container_width=True, key="btn_sample_delete"):
         prompt_to_send = "Delete customer 102."
-    if q4.button("🔍 Show all customers", use_container_width=True, key="btn_sample_list"):
-        prompt_to_send = "Show customer 103 profile."
 
     st.markdown("<br/>", unsafe_allow_html=True)
 
     # Chat Scrollable Container
-    chat_container = st.container(height=520)
+    chat_container = st.container(height=480)
     with chat_container:
         if not st.session_state.messages:
             st.markdown(
