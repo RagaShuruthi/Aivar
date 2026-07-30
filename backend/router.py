@@ -1,9 +1,11 @@
 from typing import Dict, Any, Tuple
 from backend.agents import AGENTS_MAP, SUPPORT_AGENT
+from backend.crm import crm_db
 
 class AgentRouter:
     """
-    Backend Router module dispatching Gemini structured outputs to the designated logical agent.
+    Backend Router module automatically selecting and dispatching requests
+    to the correct AI Agent based on the logged-in user's role.
     """
 
     @staticmethod
@@ -14,12 +16,19 @@ class AgentRouter:
         active_role_override: str = None
     ) -> Tuple[bool, str, Any, int, str]:
         """
-        Determines target agent and dispatches tool execution.
+        Determines target agent automatically from user session role and dispatches tool execution.
         Returns: (allowed, reason, result_data, audit_id, executed_agent_id)
         """
-        # Determine target agent ID
-        agent_id = active_role_override or structured_intent.get("agent", "support_agent")
-        target_agent = AGENTS_MAP.get(agent_id.lower(), SUPPORT_AGENT)
+        # Resolve user role automatically from Mock CRM Database if not explicitly overridden
+        resolved_role = active_role_override
+        if not resolved_role:
+            cust_record = crm_db.read_customer(session_customer_id)
+            if cust_record and cust_record.get("role"):
+                resolved_role = cust_record.get("role")
+            else:
+                resolved_role = structured_intent.get("agent", "support_agent")
+
+        target_agent = AGENTS_MAP.get(resolved_role.lower(), SUPPORT_AGENT)
 
         tool = str(structured_intent.get("tool", "crm")).lower()
         operation = str(structured_intent.get("operation", "read")).lower()

@@ -8,15 +8,16 @@ from app.core.engine import permission_engine
 from app.services.crm_service import CRMService
 from app.services.audit_service import AuditService
 from app.core.security import SecurityAlertService
+from app.tools.registry import ToolRegistry
 
 class AICustomerAgent:
     """
-    AI Customer Assistant Agent Orchestrator.
+    Unified Role-Based AI Customer Assistant Agent Orchestrator.
     
     SECURITY INVARIANTS:
-    1. Never trust LLM output blindly. Sanitize and validate every field.
-    2. NEVER invoke CRM directly. ALWAYS route through PermissionEngine.
-    3. Calculate execution latency for governance observability.
+    1. Never trust LLM output blindly. Sanitize and validate every extracted field.
+    2. NEVER invoke CRM directly. ALWAYS route through PermissionEngine Policy Decision Point.
+    3. Calculate execution latency for governance observability and explainable AI traces.
     """
 
     @classmethod
@@ -29,25 +30,27 @@ class AICustomerAgent:
     ) -> Dict[str, Any]:
         start_time = time.time()
 
-        # Step 1: Send prompt to Gemini LLM (Tool Calling Model)
+        # Step 1: Send prompt to Gemini 2.5 Flash LLM (Tool Calling Model)
         json_intent = gemini_llm.extract_tool_intent(
             prompt=prompt,
             agent_id=agent_id,
             default_customer_id=session_customer_id
         )
 
-        # Step 2: Strict Field Validation & Security Checks
+        # Step 2: Strict Field Validation & Tool Registry Check
         tool_name = str(json_intent.get("tool", "crm")).lower()
         operation = str(json_intent.get("operation", "read")).lower()
         target_customer_id = int(json_intent.get("customer_id", session_customer_id))
         fields = json_intent.get("fields", {})
 
-        if tool_name != "crm":
+        # Validate against registered tools
+        if not ToolRegistry.get(tool_name):
             tool_name = "crm"
+            
         if operation not in ["read", "update", "delete"]:
             operation = "read"
 
-        # Step 3: Construct ToolCallPayload
+        # Step 3: Construct ToolCallPayload for Proxy Mediation
         payload = ToolCallPayload(
             agent_id=agent_id,
             tool_name=tool_name,
@@ -57,10 +60,10 @@ class AICustomerAgent:
             payload_data=fields if fields else None
         )
 
-        # Step 4: PERMISSION ENGINE ENFORCEMENT (PDP)
+        # Step 4: PERMISSION ENGINE ENFORCEMENT (Proxy Layer PDP)
         decision: PermissionDecision = permission_engine.evaluate(payload)
 
-        # Step 5: AUDIT LOGGING - Commit evaluation record to SQLite
+        # Step 5: AUDIT LOGGING - Persist evaluation record to SQLite
         audit_entry = AuditService.log_decision(db, decision)
 
         # Step 6: Handle BLOCKED Denial
@@ -83,7 +86,7 @@ class AICustomerAgent:
                 "data": None
             }
 
-        # Step 7: Handle ALLOWED Execution
+        # Step 7: Handle ALLOWED Execution via Proxy-Governed Tool Registry
         crm_data = None
 
         if operation == "read":
@@ -96,7 +99,8 @@ class AICustomerAgent:
                     "company": customer.company,
                     "phone": customer.phone,
                     "status": "Active VIP",
-                    "balance": "$4,250.00"
+                    "balance": "$4,250.00",
+                    "recent_activity": "Logged in 5 mins ago"
                 }
 
         elif operation == "update":
@@ -111,13 +115,18 @@ class AICustomerAgent:
                     "company": updated_cust.company,
                     "phone": updated_cust.phone,
                     "status": "Updated",
-                    "balance": "$4,250.00"
+                    "balance": "$4,250.00",
+                    "recent_activity": "Profile details updated via AI Assistant"
                 }
 
         elif operation == "delete":
             deleted = CRMService.delete_customer(db, target_customer_id)
             if deleted:
-                crm_data = {"deleted_customer_id": target_customer_id, "status": "Deleted"}
+                crm_data = {
+                    "deleted_customer_id": target_customer_id,
+                    "status": "Deleted",
+                    "message": f"Customer account #{target_customer_id} permanently removed."
+                }
 
         exec_time = round((time.time() - start_time) * 1000, 2)
 

@@ -8,11 +8,21 @@ from app.api.crm_routes import router as crm_router
 from app.api.proxy_routes import router as proxy_router
 from app.api.audit_routes import router as audit_router
 from app.api.agent_routes import router as agent_router
+from app.api.auth_routes import router as auth_router
+from app.services.crm_service import CRMService
+from app.services.auth_service import AuthService
+from app.db.session import SessionLocal
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan event handler to create database tables on application startup."""
+    """Lifespan event handler to create database tables and seed demo data on startup."""
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        CRMService.seed_initial_data(db)
+        AuthService.seed_initial_users(db)
+    finally:
+        db.close()
     yield
 
 def create_application() -> FastAPI:
@@ -44,6 +54,7 @@ def create_application() -> FastAPI:
     app.include_router(proxy_router, prefix=settings.API_V1_STR)
     app.include_router(audit_router, prefix=settings.API_V1_STR)
     app.include_router(agent_router, prefix=settings.API_V1_STR)
+    app.include_router(auth_router, prefix=settings.API_V1_STR)
 
     @app.get("/", tags=["Root"])
     async def root():

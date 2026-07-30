@@ -2,7 +2,8 @@
     "agent_id": "support_agent",
     "tool_name": "crm",
     "allowed_operations": [
-        "read"
+        "read",
+        "update"
     ],
     "data_scope": "session_customer"
 }
