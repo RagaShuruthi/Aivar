@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: tool_permission_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - sqlite_data:/app
+    environment:
+      - DATABASE_URL=sqlite:///./sql_app.db
+    restart: unless-stopped
+    networks:
+      - governance_net
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: tool_permission_dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://api:8000/api/v1
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - governance_net
+
+volumes:
+  sqlite_data:
+    driver: local
+
+networks:
+  governance_net:
+    driver: bridge
