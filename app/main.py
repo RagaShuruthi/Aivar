@@ -1,6 +1,15 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.db.session import engine, Base
+import app.db.models  # Ensures all ORM models are registered before metadata creation
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler to create database tables on application startup."""
+    Base.metadata.create_all(bind=engine)
+    yield
 
 def create_application() -> FastAPI:
     """Factory function to initialize and configure the FastAPI application instance."""
@@ -14,6 +23,7 @@ def create_application() -> FastAPI:
         ),
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # Configure CORS Middleware to allow requests from cross-origin clients (Streamlit UI, agents)
