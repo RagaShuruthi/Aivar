@@ -1,6 +1,5 @@
 import streamlit as st
 from frontend.styles import apply_enterprise_styles
-from frontend.pages.home import render_home_page
 from frontend.pages.assistant import render_assistant_page
 from frontend.pages.dashboard_page import render_dashboard_page
 from frontend.pages.audit_logs_page import render_audit_logs_page
@@ -25,13 +24,13 @@ st.sidebar.divider()
 page_selection = st.sidebar.radio(
     "Navigation",
     [
-        "🏠 Home & Architecture",
         "🤖 AI Customer Assistant",
         "📊 Governance Dashboard",
         "📜 Audit Logs Explorer",
         "📈 Agent Analytics & Threats"
     ],
-    index=0
+    index=0,
+    key="sidebar_navigation_radio"
 )
 
 st.sidebar.divider()
@@ -44,9 +43,7 @@ st.sidebar.markdown("""
 """, unsafe_allow_html=True)
 
 # Route to Selected Page
-if page_selection == "🏠 Home & Architecture":
-    render_home_page()
-elif page_selection == "🤖 AI Customer Assistant":
+if page_selection == "🤖 AI Customer Assistant":
     render_assistant_page()
 elif page_selection == "📊 Governance Dashboard":
     render_dashboard_page()
