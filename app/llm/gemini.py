@@ -53,13 +53,13 @@ class GeminiLLM:
                     genai_legacy.configure(api_key=self.api_key)
                     self.model = genai_legacy.GenerativeModel(self.model_name)
                 self.is_configured = True
-                print("✨ Real Google Gemini LLM API activated successfully!")
+                print("[SUCCESS] Real Google Gemini LLM API activated successfully!")
             except Exception as e:
                 self.is_configured = False
-                print(f"⚠️ Failed to initialize Gemini API: {e}")
+                print(f"[WARNING] Failed to initialize Gemini API: {e}")
         else:
             if not self.api_key:
-                print("ℹ️ No GEMINI_API_KEY found in .env. Running in Fallback Deterministic NLP mode.")
+                print("[INFO] No GEMINI_API_KEY found in .env. Running in Fallback Deterministic NLP mode.")
 
     def extract_tool_intent(self, prompt: str, agent_id: str = "support_agent", default_customer_id: int = 101) -> Dict[str, Any]:
         """
