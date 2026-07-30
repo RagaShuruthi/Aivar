@@ -88,7 +88,7 @@ def render_login_page():
         st.caption("Enter or select your assigned Customer ID (101 - 120). No password required.")
 
         # Customer ID Selection / Input
-        user_options = {f"Customer #{cid} - {u['name']} ({u['department']} / {u['role_title']})": cid for cid, u in PREDEFINED_USERS_LOGIN.items()}
+        user_options = {f"Customer {cid} - {u['name']} ({u['department']} / {u['role_title']})": cid for cid, u in PREDEFINED_USERS_LOGIN.items()}
         selected_user_text = st.selectbox(
             "Select Account to Login:",
             list(user_options.keys()),
@@ -108,11 +108,11 @@ def render_login_page():
         st.markdown("#### ⚡ **1-Click Quick Demo Login**")
         q_col1, q_col2, q_col3 = st.columns(3)
 
-        if q_col1.button("👤 Support (#101)", use_container_width=True, key="quick_101"):
+        if q_col1.button("👤 Support (101)", use_container_width=True, key="quick_101"):
             login_user_and_clear_session(PREDEFINED_USERS_LOGIN[101])
 
-        if q_col2.button("💼 Sales (#102)", use_container_width=True, key="quick_102"):
+        if q_col2.button("💼 Sales (102)", use_container_width=True, key="quick_102"):
             login_user_and_clear_session(PREDEFINED_USERS_LOGIN[102])
 
-        if q_col3.button("👑 Admin (#120)", use_container_width=True, key="quick_120"):
+        if q_col3.button("👑 Admin (120)", use_container_width=True, key="quick_120"):
             login_user_and_clear_session(PREDEFINED_USERS_LOGIN[120])

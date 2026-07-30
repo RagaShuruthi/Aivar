@@ -1,6 +1,9 @@
 import streamlit as st
+import requests
 from typing import Dict, Any, Optional
 from datetime import datetime
+
+API_BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 # 20 Predefined CRM Users matching exact system requirements
 PREDEFINED_USERS = {
@@ -42,7 +45,7 @@ def render_left_sidebar():
         f"""
         <div class="glass-card">
             <div style="font-size:0.8rem; color:#9ca3af;">Session Customer ID:</div>
-            <div style="font-weight:bold; font-size:1.2rem; color:#60a5fa;">#{user['customer_id']} - {user['name']}</div>
+            <div style="font-weight:bold; font-size:1.2rem; color:#60a5fa;">ID: {user['customer_id']} - {user['name']}</div>
             <div style="font-size:0.85rem; color:#a855f7; font-weight:600; margin-top:4px;">Department: {user['department']}</div>
             <div style="font-size:0.85rem; color:#10b981; font-weight:600; margin-top:2px;">Auto AI Agent: <b>{user['role_title']}</b></div>
         </div>
@@ -67,133 +70,6 @@ def render_left_sidebar():
     return user
 
 
-def render_execution_trace(last_response: Optional[Dict[str, Any]]):
-    """
-    Renders Right Sidebar Live Execution Trace Visualizer:
-    Gemini Intent -> Selected Agent -> Permission Proxy -> CRM Tool -> Result
-    """
-    st.markdown("### 🧠 **Execution Trace**")
-    st.caption("Live Pipeline Observability & Policy Decision Step-through")
-    st.divider()
-
-    if not last_response:
-        st.info("💡 Execute a chat query in the center panel to visualize the live execution trace pipeline.")
-        return
-
-    intent = last_response.get("intent", {})
-    allowed = last_response.get("allowed", False)
-    reason = last_response.get("reason", "")
-    agent = last_response.get("agent_executed", "support_agent")
-    audit_id = last_response.get("audit_log_id", "N/A")
-
-    op_name = str(intent.get('operation', 'read')).lower()
-
-    if op_name == "chat":
-        st.markdown(
-            """
-            <div class="trace-step">
-                <div style="font-weight:bold; color:#60a5fa;">1. 🤖 Gemini Intent Detection</div>
-                <div style="margin-top:4px; font-family:monospace; color:#cbd5e1;">
-                    Type: <b>Conversational Chat</b> (No Tool Required)
-                </div>
-            </div>
-            <div class="trace-step">
-                <div style="font-weight:bold; color:#a855f7;">2. ⚡ Agent Router</div>
-                <div style="margin-top:4px; color:#cbd5e1;">
-                    Selected Agent: <b>General Assistant</b>
-                </div>
-            </div>
-            <div class="trace-step" style="border-left-color: #60a5fa;">
-                <div style="font-weight:bold; color:#f3f4f6;">3. 🛡️ Permission Proxy</div>
-                <div style="margin-top:4px; color:#cbd5e1; font-size:0.8rem;">
-                    Status: <span class="badge-allowed">N/A (Conversational)</span><br/>
-                    Reason: Bypassed - No CRM database access requested.
-                </div>
-            </div>
-            <div class="trace-step">
-                <div style="font-weight:bold; color:#f59e0b;">4. 📦 CRM Tool Execution</div>
-                <div style="margin-top:4px; color:#cbd5e1;">
-                    Status: <b>Bypassed</b>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        return
-
-    # Step 1: Gemini Intent Detection
-    st.markdown(
-        f"""
-        <div class="trace-step">
-            <div style="font-weight:bold; color:#60a5fa;">1. 🤖 Gemini Intent Detection</div>
-            <div style="margin-top:4px; font-family:monospace; color:#cbd5e1;">
-                Tool: <b>{str(intent.get('tool', 'crm')).upper()}</b> | Op: <b>{op_name.upper()}</b><br/>
-                Target Customer: <b>#{intent.get('customer_id', 101)}</b>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Step 2: Agent Dispatcher (Automatic Backend Router)
-    st.markdown(
-        f"""
-        <div class="trace-step">
-            <div style="font-weight:bold; color:#a855f7;">2. ⚡ Agent Router (Auto-Selected)</div>
-            <div style="margin-top:4px; color:#cbd5e1;">
-                Selected Agent: <b>{agent.upper()}</b>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Step 3: Permission Proxy (PDP Scope Check)
-    status_badge = '<span class="badge-allowed">✅ ALLOWED</span>' if allowed else '<span class="badge-blocked">🚫 BLOCKED (403)</span>'
-    st.markdown(
-        f"""
-        <div class="trace-step" style="border-left-color: {'#10b981' if allowed else '#ef4444'};">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:bold; color:#f3f4f6;">3. 🛡️ Permission Proxy</span>
-                {status_badge}
-            </div>
-            <div style="margin-top:6px; color:#cbd5e1; font-size:0.8rem;">
-                <b>Reason:</b> {reason}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Step 4: CRM Tool Execution
-    crm_result_status = "Executed Successfully" if allowed else "Blocked by Proxy (Execution Aborted)"
-    st.markdown(
-        f"""
-        <div class="trace-step">
-            <div style="font-weight:bold; color:#f59e0b;">4. 📦 CRM Tool Execution</div>
-            <div style="margin-top:4px; color:#cbd5e1;">
-                Status: <b>{crm_result_status}</b>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Step 5: Audit Log Metadata
-    st.markdown(
-        f"""
-        <div class="glass-card" style="margin-top:16px;">
-            <div style="font-weight:bold; color:#9ca3af; font-size:0.8rem;">AUDIT LOG RECORD</div>
-            <div style="font-size:0.85rem; margin-top:4px;">
-                Audit Log ID: <code>#LOG-{audit_id}</code><br/>
-                Timestamp: <code>{datetime.utcnow().strftime('%H:%M:%S UTC')}</code>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
 def render_customer_card(cdata: Dict[str, Any]):
     """Renders modern Customer Profile Card when allowed."""
     st.markdown(
@@ -204,7 +80,7 @@ def render_customer_card(cdata: Dict[str, Any]):
                 <span class="badge-allowed">{cdata.get('status', 'Active')}</span>
             </div>
             <table style="width:100%; border-collapse:collapse; font-size:0.9rem; color:#f3f4f6;">
-                <tr style="border-bottom:1px solid #1f2937;"><td style="padding:6px 0; color:#9ca3af; width:35%;">Customer ID</td><td style="padding:6px 0; font-weight:bold;">#{cdata.get('id')}</td></tr>
+                <tr style="border-bottom:1px solid #1f2937;"><td style="padding:6px 0; color:#9ca3af; width:35%;">Customer ID</td><td style="padding:6px 0; font-weight:bold;">{cdata.get('id')}</td></tr>
                 <tr style="border-bottom:1px solid #1f2937;"><td style="padding:6px 0; color:#9ca3af;">Name</td><td style="padding:6px 0; font-weight:bold;">{cdata.get('name')}</td></tr>
                 <tr style="border-bottom:1px solid #1f2937;"><td style="padding:6px 0; color:#9ca3af;">Email</td><td style="padding:6px 0; font-weight:bold; color:#38bdf8;">{cdata.get('email')}</td></tr>
                 <tr style="border-bottom:1px solid #1f2937;"><td style="padding:6px 0; color:#9ca3af;">Phone</td><td style="padding:6px 0; font-weight:bold;">{cdata.get('phone')}</td></tr>
@@ -214,4 +90,70 @@ def render_customer_card(cdata: Dict[str, Any]):
         </div>
         """,
         unsafe_allow_html=True
+    )
+
+
+def render_audit_logs_view():
+    """Renders real-time time-based audit log trail and security metrics."""
+    st.markdown("## 📜 **Audit Trail & Governance Command Center**")
+    st.caption("Real-time time-based log feed tracking every Permission Proxy decision.")
+
+    logs = []
+    try:
+        res = requests.get(f"{API_BASE_URL}/audit-logs?limit=100", timeout=4)
+        if res.status_code == 200:
+            logs = res.json().get("logs", [])
+    except Exception:
+        pass
+
+    if not logs:
+        # Import directly if backend server endpoint is unreachable
+        try:
+            from backend.logger import audit_logger
+            logs = audit_logger.get_logs(limit=100)
+        except Exception:
+            logs = []
+
+    total_requests = len(logs)
+    allowed_count = sum(1 for l in logs if l.get("allowed"))
+    blocked_count = total_requests - allowed_count
+    threat_alerts = sum(1 for l in logs if "SECURITY ALERT" in l.get("reason", ""))
+
+    # Top KPI Stats Bar
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Tool Requests", total_requests)
+    m2.metric("✅ Allowed Operations", allowed_count)
+    m3.metric("🚫 Blocked Violations", blocked_count)
+    m4.metric("🚨 Probing Alerts", threat_alerts)
+
+    st.divider()
+
+    if threat_alerts > 0:
+        st.warning(f"🚨 **Security Warning**: Detected {threat_alerts} probing threat alert(s) exceeding 3+ out-of-scope/policy violations per session!")
+
+    st.markdown("### 🕒 **Live Time-based Log Feed**")
+
+    if not logs:
+        st.info("No audit logs recorded yet. Send queries in the AI CRM Assistant tab to populate the audit stream.")
+        return
+
+    # Process logs for display table
+    table_data = []
+    for l in logs:
+        status_str = "✅ ALLOWED" if l.get("allowed") else "🚫 BLOCKED (403)"
+        table_data.append({
+            "Log ID": f"LOG-{l.get('id')}",
+            "Timestamp (UTC)": l.get("timestamp"),
+            "User": l.get("user"),
+            "Agent": str(l.get("agent")).upper(),
+            "Operation": str(l.get("operation")).upper(),
+            "Customer ID": str(l.get("customer_id")),
+            "Status": status_str,
+            "Reason / Policy Decision": l.get("reason")
+        })
+
+    st.dataframe(
+        table_data,
+        use_container_width=True,
+        hide_index=True
     )

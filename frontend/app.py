@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 from frontend.theme import apply_production_theme
-from frontend.components import render_left_sidebar, render_customer_card
+from frontend.components import render_left_sidebar, render_customer_card, render_audit_logs_view
 from frontend.views.login import render_login_page, auto_login_from_query_params
 
 API_BASE_URL = "http://127.0.0.1:8000/api/v1"
@@ -52,115 +52,123 @@ if st.sidebar.button("🚪 Logout & Switch User", use_container_width=True, key=
     st.query_params.clear()
     st.rerun()
 
-# --- MAIN CLEAN CHAT INTERFACE ---
-st.markdown('<div class="main-title">🛡️ Agentic AI CRM Assistant</div>', unsafe_allow_html=True)
-st.markdown(
-    f'<div class="subtitle">Logged in as <b>{active_user["name"]}</b> (Customer #{active_user["customer_id"]}) • Role: <b>{active_user["role_title"]}</b></div>',
-    unsafe_allow_html=True
-)
+# Top Tabs: Chat Assistant vs Audit Logs & Governance
+tab_chat, tab_audit = st.tabs(["💬 AI CRM Assistant", "📜 Audit Logs & Governance"])
 
-# Quick Test Chips Bar
-st.markdown("**⚡ Try Sample Natural Language Commands:**")
-q1, q2, q3, q4 = st.columns(4)
-prompt_to_send = None
+# --- TAB 1: AI CRM ASSISTANT CHAT ---
+with tab_chat:
+    st.markdown('<div class="main-title">🛡️ Agentic AI CRM Assistant</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="subtitle">Logged in as <b>{active_user["name"]}</b> (Customer ID: <b>{active_user["customer_id"]}</b>) • Role: <b>{active_user["role_title"]}</b></div>',
+        unsafe_allow_html=True
+    )
 
-if q1.button(f"👤 Show my profile (#{active_user['customer_id']})", use_container_width=True, key="btn_sample_own"):
-    prompt_to_send = f"Show customer {active_user['customer_id']} profile."
-if q2.button("🔍 Read customer 105", use_container_width=True, key="btn_sample_105"):
-    prompt_to_send = "Show customer 105 profile."
-if q3.button("✏️ Update 105 phone", use_container_width=True, key="btn_sample_update"):
-    prompt_to_send = "Update customer 105 phone number to 9876543210."
-if q4.button("❌ Delete customer 102", use_container_width=True, key="btn_sample_delete"):
-    prompt_to_send = "Delete customer 102."
+    # Quick Test Chips Bar
+    st.markdown("**⚡ Try Sample Natural Language Commands:**")
+    q1, q2, q3, q4 = st.columns(4)
+    prompt_to_send = None
 
-st.markdown("<br/>", unsafe_allow_html=True)
+    if q1.button(f"👤 Show my profile ({active_user['customer_id']})", use_container_width=True, key="btn_sample_own"):
+        prompt_to_send = f"Show customer {active_user['customer_id']} profile."
+    if q2.button("🔍 Read customer 105", use_container_width=True, key="btn_sample_105"):
+        prompt_to_send = "Show customer 105 profile."
+    if q3.button("✏️ Update 105 phone", use_container_width=True, key="btn_sample_update"):
+        prompt_to_send = "Update customer 105 phone number to 9876543210."
+    if q4.button("❌ Delete customer 102", use_container_width=True, key="btn_sample_delete"):
+        prompt_to_send = "Delete customer 102."
 
-# Chat Scrollable Container (Clean, Spacious Layout)
-chat_container = st.container(height=520)
-with chat_container:
-    if not st.session_state.messages:
-        st.markdown(
-            '<div style="text-align:center; color:#9ca3af; padding:80px 20px;">'
-            '<div style="font-size: 2.5rem; margin-bottom: 10px;">💬</div>'
-            '<h3 style="color:#f3f4f6; margin-bottom:5px;">How can I assist your CRM today?</h3>'
-            'Type a natural language request below.<br/>'
-            'Example: <i>"Show customer 101"</i>, <i>"Update customer 105 phone to 9876543210"</i>, or <i>"Delete customer 102"</i>.'
-            '</div>',
-            unsafe_allow_html=True
-        )
+    st.markdown("<br/>", unsafe_allow_html=True)
 
-    for msg in st.session_state.messages:
-        if msg["role"] == "user":
-            st.markdown(f'<div class="user-bubble">👤 <b>{msg["text"]}</b></div>', unsafe_allow_html=True)
-        elif msg["role"] == "assistant":
-            allowed = msg.get("allowed", False)
-            reason = msg.get("reason", "")
-            resp_text = msg.get("response_text", "")
-            cdata = msg.get("data")
-
+    # Chat Scrollable Container (Clean, Spacious Layout)
+    chat_container = st.container(height=500)
+    with chat_container:
+        if not st.session_state.messages:
             st.markdown(
-                f"""
-                <div class="ai-bubble">
-                    <div style="font-weight:bold; color:#60a5fa; margin-bottom:6px;">🤖 AI CRM Assistant</div>
-                    <div>{resp_text}</div>
-                </div>
-                """,
+                '<div style="text-align:center; color:#9ca3af; padding:80px 20px;">'
+                '<div style="font-size: 2.5rem; margin-bottom: 10px;">💬</div>'
+                '<h3 style="color:#f3f4f6; margin-bottom:5px;">How can I assist your CRM today?</h3>'
+                'Type a natural language request below.<br/>'
+                'Example: <i>"Show customer 101"</i>, <i>"Update customer 105 phone to 9876543210"</i>, or <i>"Delete customer 102"</i>.'
+                '</div>',
                 unsafe_allow_html=True
             )
 
-            # If allowed and customer profile returned, render structured card
-            if allowed and isinstance(cdata, dict) and "id" in cdata:
-                render_customer_card(cdata)
+        for msg in st.session_state.messages:
+            if msg["role"] == "user":
+                st.markdown(f'<div class="user-bubble">👤 <b>{msg["text"]}</b></div>', unsafe_allow_html=True)
+            elif msg["role"] == "assistant":
+                allowed = msg.get("allowed", False)
+                reason = msg.get("reason", "")
+                resp_text = msg.get("response_text", "")
+                cdata = msg.get("data")
 
-# Chat Input Box
-user_input = st.chat_input("Type your CRM command (e.g., 'Show customer 101', 'Delete customer 102')...", key="chat_input_main")
-if user_input:
-    prompt_to_send = user_input
+                st.markdown(
+                    f"""
+                    <div class="ai-bubble">
+                        <div style="font-weight:bold; color:#60a5fa; margin-bottom:6px;">🤖 AI CRM Assistant</div>
+                        <div>{resp_text}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-# Send Pipeline Request
-if prompt_to_send:
-    st.session_state.messages.append({"role": "user", "text": prompt_to_send})
+                # If allowed and customer profile returned, render structured card
+                if allowed and isinstance(cdata, dict) and "id" in cdata:
+                    render_customer_card(cdata)
 
-    payload = {
-        "user": active_user["name"],
-        "agent_role": active_user["role"],
-        "prompt": prompt_to_send,
-        "session_customer_id": active_user["customer_id"]
-    }
+    # Chat Input Box
+    user_input = st.chat_input("Type your CRM command (e.g., 'Show customer 101', 'Delete customer 102')...", key="chat_input_main")
+    if user_input:
+        prompt_to_send = user_input
 
-    try:
-        res = requests.post(f"{API_BASE_URL}/chat", json=payload, timeout=10)
-        if res.status_code == 200:
-            pipeline_res = res.json()
-        else:
+    # Send Pipeline Request
+    if prompt_to_send:
+        st.session_state.messages.append({"role": "user", "text": prompt_to_send})
+
+        payload = {
+            "user": active_user["name"],
+            "agent_role": active_user["role"],
+            "prompt": prompt_to_send,
+            "session_customer_id": active_user["customer_id"]
+        }
+
+        try:
+            res = requests.post(f"{API_BASE_URL}/chat", json=payload, timeout=10)
+            if res.status_code == 200:
+                pipeline_res = res.json()
+            else:
+                pipeline_res = {
+                    "allowed": False,
+                    "reason": f"API Error {res.status_code}: {res.text}",
+                    "response_text": f"🚫 Error communicating with backend: {res.text}",
+                    "intent": {"tool": "crm", "operation": "unknown", "customer_id": active_user["customer_id"]},
+                    "agent_executed": active_user["role"],
+                    "audit_log_id": 0,
+                    "data": None
+                }
+        except Exception as e:
             pipeline_res = {
                 "allowed": False,
-                "reason": f"API Error {res.status_code}: {res.text}",
-                "response_text": f"🚫 Error communicating with backend: {res.text}",
+                "reason": f"Backend API Connection Error: {str(e)}",
+                "response_text": f"🚫 Backend Connection Failed: Please ensure FastAPI is running on port 8000.",
                 "intent": {"tool": "crm", "operation": "unknown", "customer_id": active_user["customer_id"]},
                 "agent_executed": active_user["role"],
                 "audit_log_id": 0,
                 "data": None
             }
-    except Exception as e:
-        pipeline_res = {
-            "allowed": False,
-            "reason": f"Backend API Connection Error: {str(e)}",
-            "response_text": f"🚫 Backend Connection Failed: Please ensure FastAPI is running on port 8000.",
-            "intent": {"tool": "crm", "operation": "unknown", "customer_id": active_user["customer_id"]},
-            "agent_executed": active_user["role"],
-            "audit_log_id": 0,
-            "data": None
-        }
 
-    st.session_state.last_pipeline_response = pipeline_res
+        st.session_state.last_pipeline_response = pipeline_res
 
-    st.session_state.messages.append({
-        "role": "assistant",
-        "allowed": pipeline_res["allowed"],
-        "reason": pipeline_res["reason"],
-        "response_text": pipeline_res["response_text"],
-        "data": pipeline_res.get("data")
-    })
+        st.session_state.messages.append({
+            "role": "assistant",
+            "allowed": pipeline_res["allowed"],
+            "reason": pipeline_res["reason"],
+            "response_text": pipeline_res["response_text"],
+            "data": pipeline_res.get("data")
+        })
 
-    st.rerun()
+        st.rerun()
+
+# --- TAB 2: AUDIT LOGS & GOVERNANCE ---
+with tab_audit:
+    render_audit_logs_view()
