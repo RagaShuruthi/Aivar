@@ -1,33 +1,25 @@
-# Use official slim Python 3.11 image as base for lightweight footprint
+# Production Dockerfile for Agentic AI CRM FastAPI Backend
 FROM python:3.11-slim
 
-# Set working directory inside the container
 WORKDIR /app
 
-# Prevent Python from writing .pyc files to disk and ensure unbuffered stdout logging
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies if required
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file first to leverage Docker layer caching
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source code
-COPY ./app ./app
+COPY ./backend ./backend
+COPY .env .env
 
-# Expose FastAPI backend port
 EXPOSE 8000
 
-# Health check to ensure API readiness
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
-# Command to launch FastAPI app with Uvicorn server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

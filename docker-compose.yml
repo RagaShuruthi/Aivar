@@ -5,22 +5,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: tool_permission_api
+    container_name: agentic_ai_crm_api
     ports:
       - "8000:8000"
     volumes:
-      - sqlite_data:/app
+      - crm_db_data:/app/backend
     environment:
-      - DATABASE_URL=sqlite:///./sql_app.db
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     restart: unless-stopped
     networks:
       - governance_net
 
-  dashboard:
+  ui:
     build:
       context: .
       dockerfile: Dockerfile.dashboard
-    container_name: tool_permission_dashboard
+    container_name: agentic_ai_crm_ui
     ports:
       - "8501:8501"
     environment:
@@ -32,7 +32,7 @@ services:
       - governance_net
 
 volumes:
-  sqlite_data:
+  crm_db_data:
     driver: local
 
 networks:
