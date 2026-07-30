@@ -104,13 +104,48 @@ def render_execution_trace(last_response: Optional[Dict[str, Any]]):
     agent = last_response.get("agent_executed", "support_agent")
     audit_id = last_response.get("audit_log_id", "N/A")
 
+    op_name = str(intent.get('operation', 'read')).lower()
+
+    if op_name == "chat":
+        st.markdown(
+            """
+            <div class="trace-step">
+                <div style="font-weight:bold; color:#60a5fa;">1. 🤖 Gemini Intent Detection</div>
+                <div style="margin-top:4px; font-family:monospace; color:#cbd5e1;">
+                    Type: <b>Conversational Chat</b> (No Tool Required)
+                </div>
+            </div>
+            <div class="trace-step">
+                <div style="font-weight:bold; color:#a855f7;">2. ⚡ Agent Router</div>
+                <div style="margin-top:4px; color:#cbd5e1;">
+                    Selected Agent: <b>General Assistant</b>
+                </div>
+            </div>
+            <div class="trace-step" style="border-left-color: #60a5fa;">
+                <div style="font-weight:bold; color:#f3f4f6;">3. 🛡️ Permission Proxy</div>
+                <div style="margin-top:4px; color:#cbd5e1; font-size:0.8rem;">
+                    Status: <span class="badge-allowed">N/A (Conversational)</span><br/>
+                    Reason: Bypassed - No CRM database access requested.
+                </div>
+            </div>
+            <div class="trace-step">
+                <div style="font-weight:bold; color:#f59e0b;">4. 📦 CRM Tool Execution</div>
+                <div style="margin-top:4px; color:#cbd5e1;">
+                    Status: <b>Bypassed</b>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        return
+
     # Step 1: Gemini Intent Detection
     st.markdown(
         f"""
         <div class="trace-step">
             <div style="font-weight:bold; color:#60a5fa;">1. 🤖 Gemini Intent Detection</div>
             <div style="margin-top:4px; font-family:monospace; color:#cbd5e1;">
-                Tool: <b>{str(intent.get('tool', 'crm')).upper()}</b> | Op: <b>{str(intent.get('operation', 'read')).upper()}</b><br/>
+                Tool: <b>{str(intent.get('tool', 'crm')).upper()}</b> | Op: <b>{op_name.upper()}</b><br/>
                 Target Customer: <b>#{intent.get('customer_id', 101)}</b>
             </div>
         </div>

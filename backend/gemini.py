@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Try modern google.genai SDK first, then legacy google.generativeai
 HAS_GENAI = False
 GENAI_TYPE = None
 
@@ -25,10 +24,10 @@ except ImportError:
 
 class GeminiService:
     """
-    Google Gemini 2.5 / 1.5 Flash Service.
+    Google Gemini Service.
     
     RESPONSIBILITIES:
-    1. Intent Detection: Converts natural language into structured JSON tool requests.
+    1. Intent Detection: Converts natural language into structured JSON tool requests or conversational chat.
     2. Response Generator: Converts CRM tool execution results / proxy denials into natural language.
     3. NEVER accesses CRM directly.
     """
@@ -58,21 +57,39 @@ class GeminiService:
     def detect_intent(self, prompt: str, default_customer_id: int = 101, default_agent: str = "support_agent") -> Dict[str, Any]:
         """
         Step 1: Intent Detection.
-        Converts natural language user prompt into structured JSON tool intent.
+        Converts natural language user prompt into structured JSON tool intent or conversational chat.
         """
+        prompt_clean = prompt.strip()
+
+        # Direct check for conversational greetings / non-tool prompts
+        conversational_triggers = {"hey", "hi", "hello", "greetings", "good morning", "good evening", "help", "who are you", "what can you do", "thanks", "thank you"}
+        prompt_words = set(re.findall(r'\w+', prompt_clean.lower()))
+
+        if prompt_words.intersection(conversational_triggers) and not any(w in prompt_clean.lower() for w in ["show", "view", "delete", "update", "customer", "profile", "record", "101", "102", "105"]):
+            return {
+                "agent": default_agent,
+                "tool": "none",
+                "operation": "chat",
+                "customer_id": default_customer_id,
+                "field": None,
+                "value": None
+            }
+
         if self.is_configured:
             sys_prompt = f"""
             You are an AI Intent Extractor for an Enterprise CRM System.
             Convert the user's natural language input into JSON matching this EXACT schema:
             {{
                 "agent": "{default_agent}",
-                "tool": "crm",
-                "operation": "read" | "update" | "delete",
+                "tool": "crm" | "none",
+                "operation": "read" | "update" | "delete" | "chat",
                 "customer_id": int,
                 "field": string or null,
                 "value": string or null
             }}
-            Output ONLY valid JSON. No markdown ticks, no extra text.
+            Rules:
+            - If user input is a greeting or general question (e.g. "hey", "hello", "how are you"), set operation to "chat" and tool to "none".
+            - Output ONLY valid JSON. No markdown ticks, no extra text.
             Default customer_id if unspecified is {default_customer_id}.
             User Input: "{prompt}"
             """
@@ -99,6 +116,21 @@ class GeminiService:
     def _fallback_intent_parser(self, prompt: str, default_customer_id: int, default_agent: str) -> Dict[str, Any]:
         prompt_lower = prompt.lower()
 
+        # Check if conversational greeting
+        conversational_triggers = ["hey", "hi", "hello", "greetings", "good morning", "good evening", "help", "who are you", "what can you do", "thanks", "thank you"]
+        has_greeting = any(g in prompt_lower for g in conversational_triggers)
+        has_crm_action = any(w in prompt_lower for w in ["show", "view", "read", "profile", "record", "details", "customer", "delete", "remove", "update", "change", "set"])
+
+        if has_greeting and not has_crm_action:
+            return {
+                "agent": default_agent,
+                "tool": "none",
+                "operation": "chat",
+                "customer_id": default_customer_id,
+                "field": None,
+                "value": None
+            }
+
         # Extract customer_id
         cid_match = re.search(r'\b(customer\s*|id\s*|#\s*)?(\d{3})\b', prompt_lower)
         customer_id = int(cid_match.group(2)) if cid_match else default_customer_id
@@ -108,8 +140,12 @@ class GeminiService:
             operation = "delete"
         elif any(w in prompt_lower for w in ["update", "change", "modify", "set"]):
             operation = "update"
-        else:
+        elif has_crm_action or cid_match:
             operation = "read"
+        else:
+            operation = "chat"
+
+        tool = "none" if operation == "chat" else "crm"
 
         # Determine field & value for update
         field = None
@@ -136,7 +172,7 @@ class GeminiService:
 
         return {
             "agent": default_agent,
-            "tool": "crm",
+            "tool": tool,
             "operation": operation,
             "customer_id": customer_id,
             "field": field,
@@ -148,12 +184,16 @@ class GeminiService:
         prompt: str,
         allowed: bool,
         reason: str,
-        crm_data: Optional[Dict[str, Any]] = None
+        crm_data: Optional[Dict[str, Any]] = None,
+        is_chat_only: bool = False
     ) -> str:
         """
         Step 2: Natural Language Response Generator.
         Translates raw CRM execution results or Permission Proxy denials into professional natural language responses.
         """
+        if is_chat_only:
+            return "Hello! I am your Enterprise AI CRM Assistant. How can I help you today? You can ask me to view your customer profile, update record details, or manage customer accounts depending on your role."
+
         if self.is_configured:
             try:
                 nl_prompt = f"""

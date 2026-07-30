@@ -19,6 +19,10 @@ class AgentRouter:
         Determines target agent automatically from user session role and dispatches tool execution.
         Returns: (allowed, reason, result_data, audit_id, executed_agent_id)
         """
+        operation = str(structured_intent.get("operation", "read")).lower()
+        if operation == "chat":
+            return True, "Conversational Query - No CRM Tool Execution Required.", None, 0, "general_assistant"
+
         # Resolve user role automatically from Mock CRM Database if not explicitly overridden
         resolved_role = active_role_override
         if not resolved_role:
@@ -31,7 +35,6 @@ class AgentRouter:
         target_agent = AGENTS_MAP.get(resolved_role.lower(), SUPPORT_AGENT)
 
         tool = str(structured_intent.get("tool", "crm")).lower()
-        operation = str(structured_intent.get("operation", "read")).lower()
         customer_id = int(structured_intent.get("customer_id", session_customer_id))
         field = structured_intent.get("field")
         value = structured_intent.get("value")
