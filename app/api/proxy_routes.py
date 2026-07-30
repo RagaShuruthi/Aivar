@@ -5,6 +5,8 @@ from app.models.permission import ToolCallPayload, PermissionDecision
 from app.models.crm import CustomerUpdate
 from app.core.engine import permission_engine
 from app.services.crm_service import CRMService
+from app.services.audit_service import AuditService
+from app.core.security import SecurityAlertService
 
 router = APIRouter(prefix="/proxy", tags=["Tool Permission Proxy"])
 
@@ -12,13 +14,18 @@ router = APIRouter(prefix="/proxy", tags=["Tool Permission Proxy"])
 def invoke_tool(payload: ToolCallPayload, db: Session = Depends(get_db)):
     """
     Main Gateway Endpoint for AI Agents.
-    Intercepts tool calls, enforces permission manifests, and forwards permitted calls to CRM API.
+    Intercepts tool calls, enforces permission manifests, records audit logs,
+    triggers security alerts on policy breaches, and forwards permitted calls to CRM API.
     """
     # 1. Evaluate incoming request against Permission Engine
     decision: PermissionDecision = permission_engine.evaluate(payload)
 
-    # 2. If decision is BLOCKED, reject request immediately with HTTP 403 Forbidden
+    # 2. AUDIT LOGGING: Record every decision (Allowed or Blocked) in SQLite
+    AuditService.log_decision(db, decision)
+
+    # 3. SECURITY ALERTING: If blocked, check if agent exceeded >3 blocked attempts
     if not decision.allowed:
+        SecurityAlertService.check_and_trigger_alert(db, decision.agent_id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
