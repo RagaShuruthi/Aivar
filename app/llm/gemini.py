@@ -23,9 +23,18 @@ class GeminiLLM:
     """
     LLM Interface powering the AI Customer Assistant using Gemini 2.5 / 1.5 Flash.
     
-    IMPORTANT SECURITY INVARIANT:
-    This class ONLY parses natural language intent into structured tool call parameters.
-    It NEVER touches databases or executes tool calls directly!
+    SYSTEM PROMPT RULES:
+    - Gemini acts ONLY as a Tool Calling Model (never a conversational chatbot).
+    - It NEVER answers users directly, NEVER returns markdown formatting, NEVER generates natural text.
+    - Output strictly raw JSON in the schema:
+      {
+        "agent_id": "support_agent",
+        "tool": "crm",
+        "operation": "read" | "update" | "delete",
+        "customer_id": 101,
+        "fields": {},
+        "reasoning": "..."
+      }
     """
 
     def __init__(self, api_key: Optional[str] = None):
@@ -44,24 +53,35 @@ class GeminiLLM:
             except Exception:
                 self.is_configured = False
 
-    def extract_tool_intent(self, prompt: str, default_customer_id: int = 101) -> Dict[str, Any]:
+    def extract_tool_intent(self, prompt: str, agent_id: str = "support_agent", default_customer_id: int = 101) -> Dict[str, Any]:
         """
         Parses natural language prompt to extract tool parameters.
-        Returns dict with: tool_name, operation, target_customer_id, payload_data
+        Returns validated dict with keys: agent_id, tool, operation, customer_id, fields, reasoning
         """
         if self.is_configured:
             try:
                 system_instruction = (
-                    "You are an intent extractor for a CRM tool. "
-                    "Analyze the user's prompt and extract structured JSON tool arguments.\n"
-                    "Supported operations: 'read', 'update', 'delete'.\n"
-                    "Tool name must always be 'crm'.\n"
-                    "If a customer ID is mentioned (e.g. 101, 102), extract it as target_customer_id.\n"
-                    "If no customer ID is specified, default target_customer_id to " + str(default_customer_id) + ".\n"
-                    "Output STRICT raw JSON with keys: 'tool_name', 'operation', 'target_customer_id', 'payload_data'.\n"
-                    "Do NOT include markdown formatting or extra text."
+                    "You are a strict Tool Calling Model for an enterprise governance proxy. "
+                    "You NEVER answer users directly. You NEVER return text explanations or markdown.\n"
+                    "You convert natural language into raw JSON only.\n\n"
+                    "JSON Format:\n"
+                    "{\n"
+                    '  "agent_id": "' + agent_id + '",\n'
+                    '  "tool": "crm",\n'
+                    '  "operation": "read",\n'
+                    '  "customer_id": 101,\n'
+                    '  "fields": {},\n'
+                    '  "reasoning": "extacted intent description"\n'
+                    "}\n\n"
+                    "RULES:\n"
+                    "1. Only set tool to 'crm'.\n"
+                    "2. Allowed operations: 'read', 'update', 'delete'.\n"
+                    "3. For update requests, place updated attributes in 'fields' (e.g. {\"email\": \"alice@gmail.com\"}).\n"
+                    "4. If customer ID is mentioned (e.g. 101, 102, 205), use it in 'customer_id'. Otherwise default customer_id to " + str(default_customer_id) + ".\n"
+                    "5. Output ONLY raw JSON. Do NOT wrap in ```json ``` markdown code blocks."
                 )
-                full_prompt = f"{system_instruction}\nUser Prompt: {prompt}"
+                full_prompt = f"{system_instruction}\n\nUser Input: {prompt}"
+
                 if GENAI_TYPE == "genai":
                     res = self.client.models.generate_content(
                         model="gemini-2.5-flash",
@@ -71,24 +91,50 @@ class GeminiLLM:
                 else:
                     response = self.model.generate_content(full_prompt)
                     text = response.text.strip()
-                # Clean JSON markdown fences if present
-                cleaned_text = re.sub(r"^```json\s*", "", text)
-                cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
+
+                # Clean JSON fences if present
+                cleaned_text = re.sub(r"^```json\s*", "", text, flags=re.MULTILINE)
+                cleaned_text = re.sub(r"\s*```$", "", cleaned_text, flags=re.MULTILINE)
+                cleaned_text = cleaned_text.strip()
+
                 parsed = json.loads(cleaned_text)
-                return {
-                    "tool_name": parsed.get("tool_name", "crm"),
-                    "operation": parsed.get("operation", "read").lower(),
-                    "target_customer_id": int(parsed.get("target_customer_id", default_customer_id)),
-                    "payload_data": parsed.get("payload_data")
-                }
+                return self._validate_and_sanitize(parsed, agent_id, default_customer_id)
             except Exception:
                 pass
 
-        # Intelligent Fallback Deterministic Parser (Runs if no API Key provided or network offline)
-        return self._fallback_parser(prompt, default_customer_id)
+        # Intelligent Fallback Deterministic Parser
+        return self._fallback_parser(prompt, agent_id, default_customer_id)
 
-    def _fallback_parser(self, prompt: str, default_customer_id: int) -> Dict[str, Any]:
-        """Deterministic NLP regex fallback to guarantee zero-downtime demonstration."""
+    def _validate_and_sanitize(self, data: Dict[str, Any], agent_id: str, default_customer_id: int) -> Dict[str, Any]:
+        """Strict Security Sanitizer: Never trust LLM output blindly."""
+        tool = str(data.get("tool", "crm")).lower()
+        if tool != "crm":
+            tool = "crm"
+
+        op = str(data.get("operation", "read")).lower()
+        if op not in ["read", "update", "delete"]:
+            op = "read"
+
+        try:
+            cid = int(data.get("customer_id", default_customer_id))
+        except (ValueError, TypeError):
+            cid = default_customer_id
+
+        fields = data.get("fields")
+        if not isinstance(fields, dict):
+            fields = {}
+
+        return {
+            "agent_id": agent_id,
+            "tool": tool,
+            "operation": op,
+            "customer_id": cid,
+            "fields": fields,
+            "reasoning": str(data.get("reasoning", f"Extracted {op} intent for customer {cid}"))
+        }
+
+    def _fallback_parser(self, prompt: str, agent_id: str, default_customer_id: int) -> Dict[str, Any]:
+        """Deterministic NLP regex fallback ensuring 100% reliable execution."""
         prompt_lower = prompt.lower()
 
         # Determine operation
@@ -99,24 +145,36 @@ class GeminiLLM:
         else:
             operation = "read"
 
-        # Extract target customer ID if present (e.g. 101, 102, customer 103)
-        match = re.search(r'\b(10[0-9]|1[1-9][0-9]|[2-9][0-9]{2})\b', prompt)
-        target_id = int(match.group(1)) if match else default_customer_id
+        # Extract customer ID if present (e.g. 101, 102, 205)
+        match = re.search(r'\b([1-9][0-9]{2,3})\b', prompt)
+        customer_id = int(match.group(1)) if match else default_customer_id
 
-        # Extract update payload data if applicable
-        payload_data = None
+        # Extract update fields
+        fields = {}
         if operation == "update":
-            # Extract name if mentioned like 'name to Alice'
-            name_match = re.search(r'name\s+(?:to|=|is)\s+([A-Za-z\s]+)', prompt, re.IGNORECASE)
-            new_name = name_match.group(1).strip() if name_match else "Updated Customer Name"
-            payload_data = {"name": new_name}
+            email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', prompt)
+            if email_match:
+                fields["email"] = email_match.group(0)
+            
+            phone_match = re.search(r'\+?\d[\d\s-]{7,15}\d', prompt)
+            if phone_match:
+                fields["phone"] = phone_match.group(0).strip()
+            
+            if not fields:
+                name_match = re.search(r'name\s+(?:to|=|is)\s+([A-Za-z\s]+)', prompt, re.IGNORECASE)
+                if name_match:
+                    fields["name"] = name_match.group(1).strip()
+                else:
+                    fields["name"] = "Alice Smith (Updated)"
 
         return {
-            "tool_name": "crm",
+            "agent_id": agent_id,
+            "tool": "crm",
             "operation": operation,
-            "target_customer_id": target_id,
-            "payload_data": payload_data
+            "customer_id": customer_id,
+            "fields": fields,
+            "reasoning": f"NLP Fallback: Identified '{operation}' operation on customer {customer_id}"
         }
 
-# Singleton instance
+# Singleton Instance
 gemini_llm = GeminiLLM()
