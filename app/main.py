@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db.session import engine, Base
 import app.db.models  # Ensures all ORM models are registered before metadata creation
+from app.api.crm_routes import router as crm_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,7 +27,7 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Configure CORS Middleware to allow requests from cross-origin clients (Streamlit UI, agents)
+    # Configure CORS Middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
@@ -34,6 +35,9 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Include API Routers
+    app.include_router(crm_router, prefix=settings.API_V1_STR)
 
     @app.get("/", tags=["Root"])
     async def root():
