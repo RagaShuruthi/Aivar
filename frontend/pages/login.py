@@ -44,6 +44,15 @@ def auto_login_from_query_params():
             pass
     return False
 
+def login_user_and_clear_session(user_data):
+    """Sets session user state and wipes previous chat/trace history completely."""
+    st.session_state.authenticated = True
+    st.session_state.user = user_data
+    st.session_state.messages = []
+    st.session_state.last_pipeline_response = None
+    st.query_params["cid"] = str(user_data["customer_id"])
+    st.rerun()
+
 def render_login_page():
     """Renders Enterprise Login Page with Customer ID Authentication & Persistent Storage."""
     if auto_login_from_query_params():
@@ -61,14 +70,6 @@ def render_login_page():
         border-radius: 20px;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
         text-align: center;
-    }
-    .role-badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 700;
-        margin-top: 6px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -101,37 +102,17 @@ def render_login_page():
 
         # Login Action
         if st.button("🚀 Login to Platform", use_container_width=True, key="login_submit_btn"):
-            user_data = PREDEFINED_USERS_LOGIN[selected_cid]
-            st.session_state.authenticated = True
-            st.session_state.user = user_data
-            
-            # Save session persistently in browser query params
-            st.query_params["cid"] = str(selected_cid)
-            
-            st.success(f"✅ Logged in as {user_data['name']} (#{user_data['customer_id']}) - Role: {user_data['role_title']}")
-            st.rerun()
+            login_user_and_clear_session(PREDEFINED_USERS_LOGIN[selected_cid])
 
         st.divider()
         st.markdown("#### ⚡ **1-Click Quick Demo Login**")
         q_col1, q_col2, q_col3 = st.columns(3)
 
         if q_col1.button("👤 Support (#101)", use_container_width=True, key="quick_101"):
-            user_data = PREDEFINED_USERS_LOGIN[101]
-            st.session_state.authenticated = True
-            st.session_state.user = user_data
-            st.query_params["cid"] = "101"
-            st.rerun()
+            login_user_and_clear_session(PREDEFINED_USERS_LOGIN[101])
 
         if q_col2.button("💼 Sales (#102)", use_container_width=True, key="quick_102"):
-            user_data = PREDEFINED_USERS_LOGIN[102]
-            st.session_state.authenticated = True
-            st.session_state.user = user_data
-            st.query_params["cid"] = "102"
-            st.rerun()
+            login_user_and_clear_session(PREDEFINED_USERS_LOGIN[102])
 
         if q_col3.button("👑 Admin (#120)", use_container_width=True, key="quick_120"):
-            user_data = PREDEFINED_USERS_LOGIN[120]
-            st.session_state.authenticated = True
-            st.session_state.user = user_data
-            st.query_params["cid"] = "120"
-            st.rerun()
+            login_user_and_clear_session(PREDEFINED_USERS_LOGIN[120])

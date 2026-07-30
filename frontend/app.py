@@ -36,11 +36,19 @@ if "last_pipeline_response" not in st.session_state:
 # Render Left Sidebar User Controls & Permission Status
 active_user = render_left_sidebar()
 
-# Logout Button in Sidebar
+# Logout & Clear History Buttons in Sidebar
 st.sidebar.divider()
-if st.sidebar.button("🚪 Logout", use_container_width=True, key="sidebar_logout_btn"):
+
+if st.sidebar.button("🗑️ Clear Chat History", use_container_width=True, key="sidebar_clear_history_btn"):
+    st.session_state.messages = []
+    st.session_state.last_pipeline_response = None
+    st.rerun()
+
+if st.sidebar.button("🚪 Logout & Switch User", use_container_width=True, key="sidebar_logout_btn"):
     st.session_state.authenticated = False
     st.session_state.user = None
+    st.session_state.messages = []
+    st.session_state.last_pipeline_response = None
     st.query_params.clear()
     st.rerun()
 
