@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 from frontend.theme import apply_production_theme
 from frontend.components import render_left_sidebar, render_customer_card
-from frontend.pages.login import render_login_page, auto_login_from_query_params
+from frontend.views.login import render_login_page, auto_login_from_query_params
 
 API_BASE_URL = "http://127.0.0.1:8000/api/v1"
 
