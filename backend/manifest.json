@@ -1,0 +1,29 @@
+{
+  "support_agent": {
+    "tool": "crm",
+    "allowed_operations": [
+      "read",
+      "read_profile"
+    ],
+    "scope": "session_customer_only"
+  },
+  "sales_agent": {
+    "tool": "crm",
+    "allowed_operations": [
+      "read",
+      "read_profile",
+      "update"
+    ],
+    "scope": "all_customers"
+  },
+  "admin_agent": {
+    "tool": "crm",
+    "allowed_operations": [
+      "read",
+      "read_profile",
+      "update",
+      "delete"
+    ],
+    "scope": "all_customers"
+  }
+}
