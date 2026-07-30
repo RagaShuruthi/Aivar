@@ -4,63 +4,45 @@ from datetime import datetime
 
 # 20 Predefined CRM Users matching exact system requirements
 PREDEFINED_USERS = {
-    101: {"id": 101, "name": "Shruthi", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
-    102: {"id": 102, "name": "Kavin", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
-    103: {"id": 103, "name": "Sabari", "department": "Finance", "role": "support_agent", "role_title": "Support Agent"},
-    104: {"id": 104, "name": "Elaki", "department": "HR", "role": "support_agent", "role_title": "Support Agent"},
-    105: {"id": 105, "name": "Harini", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
-    106: {"id": 106, "name": "Vignesh", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
-    107: {"id": 107, "name": "Akash", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
-    108: {"id": 108, "name": "Priya", "department": "HR", "role": "support_agent", "role_title": "Support Agent"},
-    109: {"id": 109, "name": "Naveen", "department": "Finance", "role": "support_agent", "role_title": "Support Agent"},
-    110: {"id": 110, "name": "Keerthana", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
-    111: {"id": 111, "name": "Rahul", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
-    112: {"id": 112, "name": "Nisha", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
-    113: {"id": 113, "name": "Dinesh", "department": "Manager", "role": "sales_agent", "role_title": "Sales Agent"},
-    114: {"id": 114, "name": "Kavya", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
-    115: {"id": 115, "name": "Arjun", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
-    116: {"id": 116, "name": "Deepika", "department": "Finance", "role": "support_agent", "role_title": "Support Agent"},
-    117: {"id": 117, "name": "Sanjay", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
-    118: {"id": 118, "name": "Meena", "department": "HR", "role": "support_agent", "role_title": "Support Agent"},
-    119: {"id": 119, "name": "Ashwin", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
-    120: {"id": 120, "name": "Divya", "department": "Admin", "role": "admin_agent", "role_title": "Admin Agent"},
+    101: {"id": 101, "customer_id": 101, "name": "Shruthi", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
+    102: {"id": 102, "customer_id": 102, "name": "Kavin", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
+    103: {"id": 103, "customer_id": 103, "name": "Sabari", "department": "Finance", "role": "support_agent", "role_title": "Support Agent"},
+    104: {"id": 104, "customer_id": 104, "name": "Elaki", "department": "HR", "role": "support_agent", "role_title": "Support Agent"},
+    105: {"id": 105, "customer_id": 105, "name": "Harini", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
+    106: {"id": 106, "customer_id": 106, "name": "Vignesh", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
+    107: {"id": 107, "customer_id": 107, "name": "Akash", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
+    108: {"id": 108, "customer_id": 108, "name": "Priya", "department": "HR", "role": "support_agent", "role_title": "Support Agent"},
+    109: {"id": 109, "customer_id": 109, "name": "Naveen", "department": "Finance", "role": "support_agent", "role_title": "Support Agent"},
+    110: {"id": 110, "customer_id": 110, "name": "Keerthana", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
+    111: {"id": 111, "customer_id": 111, "name": "Rahul", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
+    112: {"id": 112, "customer_id": 112, "name": "Nisha", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
+    113: {"id": 113, "customer_id": 113, "name": "Dinesh", "department": "Manager", "role": "sales_agent", "role_title": "Sales Agent"},
+    114: {"id": 114, "customer_id": 114, "name": "Kavya", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
+    115: {"id": 115, "customer_id": 115, "name": "Arjun", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
+    116: {"id": 116, "customer_id": 116, "name": "Deepika", "department": "Finance", "role": "support_agent", "role_title": "Support Agent"},
+    117: {"id": 117, "customer_id": 117, "name": "Sanjay", "department": "Support", "role": "support_agent", "role_title": "Support Agent"},
+    118: {"id": 118, "customer_id": 118, "name": "Meena", "department": "HR", "role": "support_agent", "role_title": "Support Agent"},
+    119: {"id": 119, "customer_id": 119, "name": "Ashwin", "department": "Sales", "role": "sales_agent", "role_title": "Sales Agent"},
+    120: {"id": 120, "customer_id": 120, "name": "Divya", "department": "Admin", "role": "admin_agent", "role_title": "Admin Agent"},
 }
 
 def render_left_sidebar():
-    """Renders Left Sidebar with Customer ID User Login & Automatic Agent Resolution."""
+    """Renders Left Sidebar with Logged-In User Profile Badge & Permission Proxy Status."""
     st.sidebar.markdown("## 🛡️ **AI Governance**")
     st.sidebar.caption("Zero-Trust CRM Assistant v2.0")
     st.sidebar.divider()
 
-    st.sidebar.markdown("### 🔑 **Customer ID Login Session**")
+    # Retrieve logged-in user from session state
+    user = st.session_state.get("user")
+    if not user:
+        user = PREDEFINED_USERS[101]
 
-    # Select Customer ID (101 to 120)
-    user_labels = [f"#{cid} - {info['name']} ({info['role_title']})" for cid, info in PREDEFINED_USERS.items()]
-    selected_label = st.sidebar.selectbox(
-        "Logged-in Customer ID",
-        user_labels,
-        index=0,
-        key="sidebar_customer_id_select"
-    )
-    
-    selected_cid = int(selected_label.split(" ")[0].replace("#", ""))
-    user_info = PREDEFINED_USERS[selected_cid]
-
-    # Store user in session
-    st.session_state.active_user = {
-        "name": user_info["name"],
-        "role": user_info["role"],
-        "role_title": user_info["role_title"],
-        "customer_id": user_info["id"],
-        "department": user_info["department"]
-    }
-    user = st.session_state.active_user
-
+    st.sidebar.markdown("### 👤 **Logged-in Session Profile**")
     st.sidebar.markdown(
         f"""
         <div class="glass-card">
             <div style="font-size:0.8rem; color:#9ca3af;">Session Customer ID:</div>
-            <div style="font-weight:bold; font-size:1.15rem; color:#60a5fa;">#{user['customer_id']} - {user['name']}</div>
+            <div style="font-weight:bold; font-size:1.2rem; color:#60a5fa;">#{user['customer_id']} - {user['name']}</div>
             <div style="font-size:0.85rem; color:#a855f7; font-weight:600; margin-top:4px;">Department: {user['department']}</div>
             <div style="font-size:0.85rem; color:#10b981; font-weight:600; margin-top:2px;">Auto AI Agent: <b>{user['role_title']}</b></div>
         </div>
@@ -77,7 +59,7 @@ def render_left_sidebar():
             <span style="font-weight:bold; color:#10b981; font-size:0.9rem;">Policy Gateway ACTIVE</span>
         </div>
         <div style="font-size:0.75rem; color:#9ca3af; margin-top:6px;">
-            Validating Agent, Operation, & Customer Scope via <code>manifest.json</code>.
+            Enforcing Zero-Trust scope validation via <code>manifest.json</code>.
         </div>
         """,
         unsafe_allow_html=True
