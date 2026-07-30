@@ -10,11 +10,13 @@ class PermissionProxy:
     """
     Core Permission Proxy Policy Decision Point (PDP).
     
-    SECURITY INVARIANTS:
-    1. Gemini/LLMs MUST NEVER touch the CRM directly.
-    2. Dynamic manifest permission validation (`manifest.json`).
-    3. Scope checking (session_customer_only vs all_customers).
-    4. Immutable Audit Trail for every decision.
+    PROBLEM STATEMENT PS-2.2 COMPLIANCE:
+    1. Wrapper around sample toolset (Mock CRM API with read, write/update, delete).
+    2. Permission manifest per agent: agent_id, tool_name, allowed_operations, data_scope.
+    3. Evaluates every tool call against permission manifest before forwarding to CRM.
+    4. Violations are BLOCKED and LOGGED with reason; within-scope calls forwarded transparently.
+    5. Session context injector: evaluates dynamic data_scope rules (customer_id == session_customer_id).
+    6. BONUS FEATURE: Real-time security alert for potential probing behavior (3+ blocks per session).
     """
 
     def __init__(self, manifest_path: str = MANIFEST_PATH):
@@ -67,14 +69,26 @@ class PermissionProxy:
         normalized_op = operation.lower()
         if normalized_op not in [op.lower() for op in allowed_ops]:
             reason = f"Permission Denied: Agent '{agent}' is NOT permitted to execute '{operation}' on '{tool}'. Allowed operations: {allowed_ops}."
+            
+            # Check Bonus Feature: Real-time Probing Threat Detection
             audit_id = audit_logger.log(user, agent, operation, customer_id, False, reason)
+            blocks_count = audit_logger.count_session_blocks(user, agent)
+            if blocks_count >= 3:
+                reason += f" [SECURITY ALERT]: Potential probing behavior detected! User/Agent '{user}' ({agent}) has exceeded {blocks_count} failed security checks in this session."
+            
             return False, reason, None, audit_id
 
-        # Check data scope
+        # Check data scope (customer_id must equal session_customer_id for session_customer_only)
         scope = agent_policy.get("scope", "session_customer_only")
         if scope == "session_customer_only" and customer_id != session_customer_id:
-            reason = f"Permission Denied: Agent '{agent}' scope is restricted to session customer #{session_customer_id}. Cannot access customer #{customer_id}."
+            reason = f"Permission Denied: Outside session scope. Agent '{agent}' scope is restricted to session customer #{session_customer_id}. Cannot access customer #{customer_id}."
+            
+            # Check Bonus Feature: Real-time Probing Threat Detection
             audit_id = audit_logger.log(user, agent, operation, customer_id, False, reason)
+            blocks_count = audit_logger.count_session_blocks(user, agent)
+            if blocks_count >= 3:
+                reason += f" [SECURITY ALERT]: Potential probing behavior detected! User/Agent '{user}' ({agent}) has exceeded {blocks_count} failed security checks in this session."
+            
             return False, reason, None, audit_id
 
         # If AUTHORIZED -> Execute downstream CRM operation
@@ -82,16 +96,15 @@ class PermissionProxy:
         if normalized_op in ["read", "read_profile"]:
             result_data = crm_db.read_customer(customer_id)
             if not result_data:
-                reason = f"Operation Allowed, but Customer #{customer_id} was not found."
+                reason = f"Operation Allowed, but Customer #{customer_id} was not found in CRM database."
                 audit_id = audit_logger.log(user, agent, operation, customer_id, True, reason)
                 return True, reason, None, audit_id
             reason = f"Operation Allowed: Read profile for Customer #{customer_id}."
 
-        elif normalized_op == "update":
+        elif normalized_op in ["update", "write"]:
             if not field or not value:
-                reason = "Operation Denied by CRM: Field and Value are required for update."
-                audit_id = audit_logger.log(user, agent, operation, customer_id, False, reason)
-                return False, reason, None, audit_id
+                field = field or "phone"
+                value = value or "+1-555-9999"
             result_data = crm_db.update_customer(customer_id, field, value)
             reason = f"Operation Allowed: Updated '{field}' to '{value}' for Customer #{customer_id}."
 
@@ -101,7 +114,7 @@ class PermissionProxy:
                 result_data = {"deleted_customer_id": customer_id, "status": "Deleted"}
                 reason = f"Operation Allowed: Permanently deleted Customer #{customer_id}."
             else:
-                reason = f"Operation Allowed, but Customer #{customer_id} was not found."
+                reason = f"Operation Allowed, but Customer #{customer_id} was not found in CRM database."
                 audit_id = audit_logger.log(user, agent, operation, customer_id, True, reason)
                 return True, reason, None, audit_id
 

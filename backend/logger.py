@@ -6,7 +6,7 @@ from typing import Dict, Any, List
 LOG_DB_PATH = os.path.join(os.path.dirname(__file__), "audit.db")
 
 class AuditLogger:
-    """Immutable Audit Logging Service for governance and observability."""
+    """Immutable Audit Logging Service for governance and threat detection."""
 
     def __init__(self, db_path: str = LOG_DB_PATH):
         self.db_path = db_path
@@ -54,6 +54,16 @@ class AuditLogger:
             )
             conn.commit()
             return cursor.lastrowid
+
+    def count_session_blocks(self, user: str, agent: str) -> int:
+        """Counts total blocked requests for a user session to detect probing behavior."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM audit_logs WHERE user = ? AND agent = ? AND allowed = 0",
+                (user, agent)
+            )
+            return cursor.fetchone()[0]
 
     def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
         with self._get_connection() as conn:
