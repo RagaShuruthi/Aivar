@@ -3,6 +3,13 @@ import sys
 import time
 import urllib.request
 import os
+import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 def wait_for_api(url="http://127.0.0.1:8000/health", timeout=15):
     """Polls the FastAPI health endpoint until it is ready."""

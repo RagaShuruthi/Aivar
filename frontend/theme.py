@@ -4,10 +4,10 @@ def apply_production_theme():
     """Applies modern production dark-mode glassmorphism styling."""
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
     html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
     .stApp {
@@ -18,6 +18,7 @@ def apply_production_theme():
     .main-title {
         font-size: 2.2rem;
         font-weight: 800;
+        letter-spacing: -0.02em;
         background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -35,7 +36,7 @@ def apply_production_theme():
         backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px;
-        padding: 16px;
+        padding: 18px;
         margin-bottom: 14px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
@@ -52,40 +53,53 @@ def apply_production_theme():
     .badge-allowed {
         background: rgba(16, 185, 129, 0.15);
         color: #10b981;
-        border: 1px solid #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
         padding: 4px 10px;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.8rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
     }
 
     .badge-blocked {
         background: rgba(239, 68, 68, 0.15);
         color: #ef4444;
-        border: 1px solid #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
         padding: 4px 10px;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.8rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
     }
 
     .user-bubble {
-        background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+        background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
         color: #ffffff;
-        padding: 12px 16px;
-        border-radius: 16px 16px 4px 16px;
+        padding: 12px 18px;
+        border-radius: 14px 14px 2px 14px;
         margin: 10px 0 10px auto;
         max-width: 80%;
+        font-weight: 500;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
     }
 
     .ai-bubble {
-        background: #1e293b;
-        border: 1px solid #334155;
+        background: #111827;
+        border: 1px solid #1f2937;
         color: #f8fafc;
-        padding: 14px 18px;
-        border-radius: 16px 16px 16px 4px;
+        padding: 16px 20px;
+        border-radius: 14px 14px 14px 2px;
         margin: 10px auto 10px 0;
         max-width: 90%;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    }
+
+    /* Professional Button Styling */
+    .stButton > button {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease !important;
     }
     </style>
     """, unsafe_allow_html=True)
+
