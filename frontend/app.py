@@ -194,11 +194,14 @@ if interface_mode == "User Portal (AI Chat)":
                 st.session_state.pending_update = None
                 prompt_to_send = final_prompt
 
-        # Normal query processing
-        if prompt_to_send and st.session_state.pending_update is None:
-            # Check if this is an incomplete update prompt that needs follow-up
+            # Check if this is an incomplete update action prompt that needs follow-up
+            import re
             prompt_low = prompt_to_send.lower()
-            if any(w in prompt_low for w in ["update customer", "update", "updation", "modify"]) and not any(w in prompt_low for w in ["what was updated", "show history"]):
+            is_update_action = bool(re.search(r'\b(update|modify|change|edit|set)\b', prompt_low))
+            is_show_query = any(w in prompt_low for w in ["show", "view", "read", "display", "see", "what was", "history", "updated data", "updated profile", "that updated"])
+
+            if is_update_action and not is_show_query:
+
                 import re
                 has_cid = re.search(r'\b(\d{3})\b', prompt_low)
                 has_field = any(f in prompt_low for f in ["phone", "email", "name", "city", "status"])

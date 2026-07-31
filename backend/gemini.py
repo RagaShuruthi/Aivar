@@ -214,16 +214,21 @@ class GeminiService:
         customer_id = int(cid_match.group(2)) if cid_match else default_customer_id
 
         # Determine operation
-        if any(w in prompt_lower for w in ["create", "add new", "new customer", "register customer"]):
+        is_read_intent = any(w in prompt_lower for w in ["show", "view", "read", "display", "see", "profile", "record", "details", "updated data", "updated profile"])
+
+        if is_read_intent:
+            operation = "read"
+        elif any(w in prompt_lower for w in ["create", "add new", "new customer", "register customer"]):
             operation = "create"
         elif any(w in prompt_lower for w in ["delete", "remove", "erase", "cancel"]):
             operation = "delete"
-        elif any(w in prompt_lower for w in ["update", "updation", "updating", "change", "modify", "edit", "set"]):
+        elif any(re.search(r'\b' + re.escape(w) + r'\b', prompt_lower) for w in ["update", "updation", "updating", "change", "modify", "edit", "set"]):
             operation = "update"
         elif has_crm_action or cid_match:
             operation = "read"
         else:
             operation = "chat"
+
 
         tool = "none" if operation == "chat" else "crm"
 
