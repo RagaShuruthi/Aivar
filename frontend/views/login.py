@@ -59,8 +59,38 @@ def login_user_and_clear_session(user_data):
     st.query_params["cid"] = str(user_data["customer_id"])
     st.rerun()
 
+THREE_USERS = {
+    "Shruthi (Read Only Agent - Customer #101)": {
+        "id": 101,
+        "customer_id": 101,
+        "name": "Shruthi",
+        "department": "Support",
+        "role": "support_agent",
+        "role_label": "Read Only Agent",
+        "role_title": "Read Only Agent"
+    },
+    "Kavin (Read + Update Agent - Customer #102)": {
+        "id": 102,
+        "customer_id": 102,
+        "name": "Kavin",
+        "department": "Sales",
+        "role": "sales_agent",
+        "role_label": "Read + Update Agent",
+        "role_title": "Read + Update Agent"
+    },
+    "Divya (Full Access Agent - Customer #120)": {
+        "id": 120,
+        "customer_id": 120,
+        "name": "Divya",
+        "department": "Admin",
+        "role": "admin_agent",
+        "role_label": "Full Access Agent",
+        "role_title": "Full Access Agent"
+    }
+}
+
 def render_login_page():
-    """Renders Session Context Initialization Page collecting User Name, Agent Role, and Session Customer Scope."""
+    """Renders Session Context Initialization Page for the 3 system users."""
     if auto_login_from_query_params():
         return
 
@@ -82,27 +112,35 @@ def render_login_page():
         st.markdown(
             '<div style="text-align: center; margin-top: 20px; margin-bottom: 20px;">'
             '<h1 style="background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px;">Session Context Initialization</h1>'
-            '<p style="color: #9ca3af; font-size: 0.95rem;">Configure user identity and session scope for the Permission Proxy PDP</p>'
+            '<p style="color: #9ca3af; font-size: 0.95rem;">Select user identity and session scope for Permission Proxy PDP</p>'
             '</div>',
             unsafe_allow_html=True
         )
 
+        selected_user_key = st.selectbox(
+            "Select System User:",
+            list(THREE_USERS.keys()),
+            index=0,
+            key="init_three_users_select"
+        )
+
+        chosen = THREE_USERS[selected_user_key]
+
         with st.container():
-            user_name = st.text_input("User Name", value="Shruthi", key="init_user_name")
+            user_name = st.text_input("User Name", value=chosen["name"], key="init_user_name")
             
             selected_role_label = st.selectbox(
                 "User Role",
                 ["Read Only Agent", "Read + Update Agent", "Full Access Agent"],
-                index=0,
+                index=["Read Only Agent", "Read + Update Agent", "Full Access Agent"].index(chosen["role_label"]),
                 key="init_user_role"
             )
 
-            
             customer_scope_id = st.number_input(
                 "Session Customer Scope (Customer ID)",
                 min_value=101,
                 max_value=999,
-                value=101,
+                value=chosen["customer_id"],
                 step=1,
                 key="init_customer_scope"
             )
@@ -114,7 +152,7 @@ def render_login_page():
                 user_data = {
                     "id": int(customer_scope_id),
                     "customer_id": int(customer_scope_id),
-                    "name": user_name.strip() if user_name.strip() else "User",
+                    "name": user_name.strip() if user_name.strip() else chosen["name"],
                     "department": selected_role_label,
                     "role": role_info["role"],
                     "role_title": role_info["role_title"]
@@ -122,25 +160,17 @@ def render_login_page():
                 login_user_and_clear_session(user_data)
 
         st.divider()
-        st.markdown("#### **Preset Session Scenarios**")
+        st.markdown("#### **Quick Single-Click User Login**")
         q_col1, q_col2, q_col3 = st.columns(3)
 
-        if q_col1.button("Read Only (ID 101)", use_container_width=True, key="quick_101"):
-            login_user_and_clear_session({
-                "id": 101, "customer_id": 101, "name": "Shruthi", "department": "Support",
-                "role": "support_agent", "role_title": "Read Only Agent"
-            })
+        if q_col1.button("Shruthi\n(Read Only #101)", use_container_width=True, key="quick_101"):
+            login_user_and_clear_session(THREE_USERS["Shruthi (Read Only Agent - Customer #101)"])
 
-        if q_col2.button("Read + Update (ID 102)", use_container_width=True, key="quick_102"):
-            login_user_and_clear_session({
-                "id": 102, "customer_id": 102, "name": "Kavin", "department": "Sales",
-                "role": "sales_agent", "role_title": "Read + Update Agent"
-            })
+        if q_col2.button("Kavin\n(Read+Update #102)", use_container_width=True, key="quick_102"):
+            login_user_and_clear_session(THREE_USERS["Kavin (Read + Update Agent - Customer #102)"])
 
-        if q_col3.button("Full Access (ID 120)", use_container_width=True, key="quick_120"):
-            login_user_and_clear_session({
-                "id": 120, "customer_id": 120, "name": "Divya", "department": "Admin",
-                "role": "admin_agent", "role_title": "Full Access Agent"
-            })
+        if q_col3.button("Divya\n(Full Access #120)", use_container_width=True, key="quick_120"):
+            login_user_and_clear_session(THREE_USERS["Divya (Full Access Agent - Customer #120)"])
+
 
 
