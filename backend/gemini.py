@@ -187,14 +187,15 @@ class GeminiService:
         allowed: bool,
         reason: str,
         crm_data: Optional[Dict[str, Any]] = None,
-        is_chat_only: bool = False
+        is_chat_only: bool = False,
+        operation: str = "read"
     ) -> str:
         """
         Step 2: Natural Language Response Generator.
         Translates raw CRM execution results or Permission Proxy denials into professional natural language responses.
         """
         if is_chat_only:
-            return "Hello! I am your Enterprise AI CRM Assistant. How can I help you today? You can ask me to view your customer profile, update record details, or manage customer accounts depending on your role."
+            return "Hello! I am your Enterprise AI CRM Assistant. How can I help you today? You can ask me to view customer profiles, update record details, or manage customer accounts depending on your role."
 
         if self.is_configured:
             try:
@@ -224,12 +225,15 @@ class GeminiService:
         # Fallback Natural Language Response Generation
         if allowed:
             if crm_data:
-                if "deleted_customer_id" in crm_data:
-                    return f"Customer record #{crm_data['deleted_customer_id']} has been permanently deleted from the CRM."
+                if "deleted_customer_id" in crm_data or operation.lower() == "delete":
+                    return f"Customer record #{crm_data.get('deleted_customer_id', crm_data.get('id'))} has been permanently deleted from the CRM."
+                elif operation.lower() == "update":
+                    return f"Customer record #{crm_data.get('id')} ({crm_data.get('name')}) has been updated successfully."
                 return f"Customer profile for {crm_data.get('name', 'Customer')} (#{crm_data.get('id')}) retrieved successfully. Status: {crm_data.get('status')}, Email: {crm_data.get('email')}."
             return f"Action processed successfully: {reason}"
         else:
             return f"Request Blocked: {reason} No action has been performed on the CRM database."
+
 
 # Singleton Gemini Service Instance
 gemini_service = GeminiService()
