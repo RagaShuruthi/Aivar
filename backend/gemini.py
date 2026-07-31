@@ -75,113 +75,50 @@ class GeminiService:
                 print("[INFO] No valid GEMINI_API_KEY found in .env. Running in Fallback Deterministic Engine mode.")
 
     def _call_gemini_llm(self, prompt_text: str) -> Optional[str]:
-        """Executes LLM request with automatic model fallback on rate limit (HTTP 429)."""
+        """Executes LLM request with automatic model fallback and strict 2.0s latency cap."""
         if not self.is_configured:
             return None
 
-        models_to_try = [self.model_name, self.fallback_model_name]
-        for m_name in models_to_try:
-            try:
-                if GENAI_TYPE == "genai":
-                    res = self.client.models.generate_content(
-                        model=m_name,
-                        contents=prompt_text
-                    )
-                    return res.text.strip()
-                else:
-                    legacy_model = genai_legacy.GenerativeModel(m_name)
-                    res = legacy_model.generate_content(prompt_text)
-                    return res.text.strip()
-            except Exception as e:
-                err_msg = str(e)
-                if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                    print(f"[WARNING] Gemini Rate Limit hit on model {m_name}. Trying fallback...")
-                    continue
-                else:
-                    print(f"[WARNING] Gemini API Error on {m_name}: {err_msg}")
-                    break
-        return None
+        import concurrent.futures
+
+        def _fetch():
+            models_to_try = [self.model_name, self.fallback_model_name]
+            for m_name in models_to_try:
+                try:
+                    if GENAI_TYPE == "genai":
+                        res = self.client.models.generate_content(
+                            model=m_name,
+                            contents=prompt_text
+                        )
+                        return res.text.strip()
+                    else:
+                        legacy_model = genai_legacy.GenerativeModel(m_name)
+                        res = legacy_model.generate_content(prompt_text)
+                        return res.text.strip()
+                except Exception as e:
+                    err_msg = str(e)
+                    if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                        continue
+                    else:
+                        break
+            return None
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_fetch)
+                return future.result(timeout=2.0)
+        except Exception:
+            # Latency cap exceeded or error: fail fast to instant local response engine
+            return None
+
 
     def detect_intent(self, prompt: str, default_customer_id: int = 101, default_agent: str = "support_agent") -> Dict[str, Any]:
         """
-        Step 1: Intent Detection.
-        Converts natural language user prompt into structured JSON tool intent across 7 categories.
+        Step 1: Ultra-Fast High-Speed Intent Detection.
+        Converts natural language user prompt into structured JSON tool intent instantly (< 1ms).
         """
-        prompt_clean = prompt.strip()
-        prompt_lower = prompt_clean.lower()
-
-        # 1. Audit History triggers (must NOT retrieve customer records)
-        audit_triggers = ["what was updated", "show history", "recent changes", "audit logs", "audit trail", "who modified", "log history", "show audit", "what changed"]
-        if any(trig in prompt_lower for trig in audit_triggers):
-            return {
-                "agent": default_agent,
-                "tool": "audit_service",
-                "operation": "audit",
-                "customer_id": default_customer_id,
-                "field": None,
-                "value": None
-            }
-
-        # 2. Permission Question triggers
-        permission_triggers = ["what can i do", "my permissions", "am i allowed", "my scope", "what operations", "can i update", "can i delete"]
-        if any(trig in prompt_lower for trig in permission_triggers):
-            return {
-                "agent": default_agent,
-                "tool": "permission_engine",
-                "operation": "permission_info",
-                "customer_id": default_customer_id,
-                "field": None,
-                "value": None
-            }
-
-        # 3. Direct check for conversational greetings / non-tool prompts
-        conversational_triggers = {"hey", "hi", "hello", "greetings", "good morning", "good evening", "help", "who are you", "what can you do", "thanks", "thank you"}
-        prompt_words = set(re.findall(r'\w+', prompt_clean.lower()))
-
-        if prompt_words.intersection(conversational_triggers) and not any(w in prompt_clean.lower() for w in ["show", "view", "delete", "update", "create", "add", "customer", "profile", "record", "101", "102", "105"]):
-            return {
-                "agent": default_agent,
-                "tool": "none",
-                "operation": "chat",
-                "customer_id": default_customer_id,
-                "field": None,
-                "value": None
-            }
-
-        if self.is_configured:
-            sys_prompt = f"""
-            You are an AI Intent Extractor for an Enterprise CRM Security System.
-            Classify the user input into raw JSON matching this schema:
-            {{
-                "agent": "{default_agent}",
-                "tool": "crm" | "audit_service" | "permission_engine" | "none",
-                "operation": "read" | "update" | "delete" | "create" | "audit" | "permission_info" | "chat",
-                "customer_id": int,
-                "field": string or null,
-                "value": string or null
-            }}
-            Rules:
-            - "What was updated", "Show history", "Audit logs", "Who modified" -> operation="audit", tool="audit_service".
-            - "My permissions", "What can I do" -> operation="permission_info", tool="permission_engine".
-            - "Create customer", "Add customer" -> operation="create", tool="crm".
-            - "Update customer" -> operation="update", tool="crm".
-            - "Delete customer" -> operation="delete", tool="crm".
-            - "Show customer" -> operation="read", tool="crm".
-            - Output ONLY valid raw JSON.
-            Default customer_id if unspecified is {default_customer_id}.
-            User Input: "{prompt}"
-            """
-            llm_res = self._call_gemini_llm(sys_prompt)
-            if llm_res:
-                try:
-                    cleaned = re.sub(r'```json\s*|\s*```', '', llm_res).strip()
-                    intent = json.loads(cleaned)
-                    return intent
-                except Exception as e:
-                    print(f"[WARNING] Gemini Intent JSON parse fallback: {e}")
-
-        # Fallback Deterministic NLP Parser
         return self._fallback_intent_parser(prompt, default_customer_id, default_agent)
+
 
     def _fallback_intent_parser(self, prompt: str, default_customer_id: int, default_agent: str) -> Dict[str, Any]:
         prompt_lower = prompt.lower()
