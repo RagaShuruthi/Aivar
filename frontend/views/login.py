@@ -28,10 +28,14 @@ PREDEFINED_USERS_LOGIN = {
 }
 
 ROLE_MAP = {
-    "Read Only Agent": {"role": "support_agent", "role_title": "Read Only Agent"},
-    "Read + Update Agent": {"role": "sales_agent", "role_title": "Read + Update Agent"},
-    "Full Access Agent": {"role": "admin_agent", "role_title": "Full Access Agent"},
+    "Read Only": {"role": "support_agent", "role_title": "Read Only"},
+    "Read + Update": {"role": "sales_agent", "role_title": "Read & Update"},
+    "Full Access": {"role": "admin_agent", "role_title": "Full Access"},
+    "Read Only Agent": {"role": "support_agent", "role_title": "Read Only"},
+    "Read + Update Agent": {"role": "sales_agent", "role_title": "Read & Update"},
+    "Full Access Agent": {"role": "admin_agent", "role_title": "Full Access"},
 }
+
 
 def auto_login_from_query_params():
     """Checks browser query params for persistent session restoration."""
