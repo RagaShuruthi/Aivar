@@ -23,6 +23,39 @@ class AgentRouter:
         if operation == "chat":
             return True, "Conversational Query - No CRM Tool Execution Required.", None, 0, "general_assistant"
 
+        if operation == "audit":
+            from backend.logger import audit_logger
+            logs = audit_logger.get_logs(limit=5)
+            if not logs:
+                summary_text = "No recent audit history recorded yet."
+            else:
+                formatted_lines = []
+                for l in logs:
+                    status_label = "ALLOWED" if l.get("allowed") else "BLOCKED"
+                    formatted_lines.append(
+                        f"• [{l.get('timestamp')}] User '{l.get('user')}' ({l.get('agent')}) -> {l.get('operation').upper()} on Customer #{l.get('customer_id')} ({status_label}): {l.get('reason')}"
+                    )
+                summary_text = "Recent Audit History:\n" + "\n".join(formatted_lines)
+            
+            return True, summary_text, {"audit_history": logs, "summary": summary_text}, 0, "audit_service"
+
+        if operation == "permission_info":
+            resolved_role = active_role_override or "support_agent"
+            target_agent = AGENTS_MAP.get(resolved_role.lower(), SUPPORT_AGENT)
+            manifest = target_agent.permission_proxy.manifest.get(resolved_role, {})
+            allowed_ops = manifest.get("allowed_operations", [])
+            scope = manifest.get("scope", "session_customer_only")
+            
+            perm_text = (
+                f"Your Session Permission Metadata:\n"
+                f"• Active Role: {resolved_role.upper()}\n"
+                f"• Authorized Operations: {', '.join(allowed_ops)}\n"
+                f"• Access Scope: {scope}\n"
+                f"• Session Customer ID: #{session_customer_id}"
+            )
+            return True, perm_text, {"permissions": manifest}, 0, "permission_engine"
+
+
         # Resolve user role automatically from Mock CRM Database if not explicitly overridden
         resolved_role = active_role_override
         if not resolved_role:

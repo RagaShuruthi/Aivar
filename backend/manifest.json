@@ -14,7 +14,7 @@
       "read_profile",
       "update"
     ],
-    "scope": "all_customers"
+    "scope": "session_customer_only"
   },
   "admin_agent": {
     "tool": "crm",
@@ -22,8 +22,10 @@
       "read",
       "read_profile",
       "update",
-      "delete"
+      "delete",
+      "create"
     ],
     "scope": "all_customers"
   }
 }
+

@@ -76,15 +76,47 @@ class GeminiService:
     def detect_intent(self, prompt: str, default_customer_id: int = 101, default_agent: str = "support_agent") -> Dict[str, Any]:
         """
         Step 1: Intent Detection.
-        Converts natural language user prompt into structured JSON tool intent or conversational chat.
+        Converts natural language user prompt into structured JSON tool intent across 7 categories:
+        1. Retrieve Customer (read)
+        2. Update Customer (update)
+        3. Delete Customer (delete)
+        4. Create Customer (create)
+        5. Audit History (audit)
+        6. Permission Question (permission_info)
+        7. General Conversation (chat)
         """
         prompt_clean = prompt.strip()
+        prompt_lower = prompt_clean.lower()
 
-        # Direct check for conversational greetings / non-tool prompts
+        # 1. Audit History triggers (must NOT retrieve customer records)
+        audit_triggers = ["what was updated", "show history", "recent changes", "audit logs", "audit trail", "who modified", "log history", "show audit", "what changed"]
+        if any(trig in prompt_lower for trig in audit_triggers):
+            return {
+                "agent": default_agent,
+                "tool": "audit_service",
+                "operation": "audit",
+                "customer_id": default_customer_id,
+                "field": None,
+                "value": None
+            }
+
+        # 2. Permission Question triggers
+        permission_triggers = ["what can i do", "my permissions", "am i allowed", "my scope", "what operations", "can i update", "can i delete"]
+        if any(trig in prompt_lower for trig in permission_triggers):
+            return {
+                "agent": default_agent,
+                "tool": "permission_engine",
+                "operation": "permission_info",
+                "customer_id": default_customer_id,
+                "field": None,
+                "value": None
+            }
+
+        # 3. Direct check for conversational greetings / non-tool prompts
         conversational_triggers = {"hey", "hi", "hello", "greetings", "good morning", "good evening", "help", "who are you", "what can you do", "thanks", "thank you"}
         prompt_words = set(re.findall(r'\w+', prompt_clean.lower()))
 
-        if prompt_words.intersection(conversational_triggers) and not any(w in prompt_clean.lower() for w in ["show", "view", "delete", "update", "customer", "profile", "record", "101", "102", "105"]):
+        if prompt_words.intersection(conversational_triggers) and not any(w in prompt_clean.lower() for w in ["show", "view", "delete", "update", "create", "add", "customer", "profile", "record", "101", "102", "105"]):
             return {
                 "agent": default_agent,
                 "tool": "none",
@@ -96,19 +128,24 @@ class GeminiService:
 
         if self.is_configured:
             sys_prompt = f"""
-            You are an AI Intent Extractor for an Enterprise CRM System.
-            Convert the user's natural language input into JSON matching this EXACT schema:
+            You are an AI Intent Extractor for an Enterprise CRM Security System.
+            Classify the user input into raw JSON matching this schema:
             {{
                 "agent": "{default_agent}",
-                "tool": "crm" | "none",
-                "operation": "read" | "update" | "delete" | "chat",
+                "tool": "crm" | "audit_service" | "permission_engine" | "none",
+                "operation": "read" | "update" | "delete" | "create" | "audit" | "permission_info" | "chat",
                 "customer_id": int,
                 "field": string or null,
                 "value": string or null
             }}
             Rules:
-            - If user input is a greeting or general question (e.g. "hey", "hello", "how are you"), set operation to "chat" and tool to "none".
-            - Output ONLY valid JSON. No markdown ticks, no extra text.
+            - "What was updated", "Show history", "Audit logs", "Who modified" -> operation="audit", tool="audit_service".
+            - "My permissions", "What can I do" -> operation="permission_info", tool="permission_engine".
+            - "Create customer", "Add customer" -> operation="create", tool="crm".
+            - "Update customer" -> operation="update", tool="crm".
+            - "Delete customer" -> operation="delete", tool="crm".
+            - "Show customer" -> operation="read", tool="crm".
+            - Output ONLY valid raw JSON.
             Default customer_id if unspecified is {default_customer_id}.
             User Input: "{prompt}"
             """
@@ -135,10 +172,32 @@ class GeminiService:
     def _fallback_intent_parser(self, prompt: str, default_customer_id: int, default_agent: str) -> Dict[str, Any]:
         prompt_lower = prompt.lower()
 
-        # Check if conversational greeting
+        # Audit History Check
+        if any(trig in prompt_lower for trig in ["what was updated", "show history", "recent changes", "audit logs", "audit trail", "who modified", "what changed"]):
+            return {
+                "agent": default_agent,
+                "tool": "audit_service",
+                "operation": "audit",
+                "customer_id": default_customer_id,
+                "field": None,
+                "value": None
+            }
+
+        # Permission Question Check
+        if any(trig in prompt_lower for trig in ["what can i do", "my permissions", "am i allowed", "my scope", "what operations"]):
+            return {
+                "agent": default_agent,
+                "tool": "permission_engine",
+                "operation": "permission_info",
+                "customer_id": default_customer_id,
+                "field": None,
+                "value": None
+            }
+
+        # Conversational Greeting Check
         conversational_triggers = ["hey", "hi", "hello", "greetings", "good morning", "good evening", "help", "who are you", "what can you do", "thanks", "thank you"]
         has_greeting = any(g in prompt_lower for g in conversational_triggers)
-        has_crm_action = any(w in prompt_lower for w in ["show", "view", "read", "profile", "record", "details", "customer", "delete", "remove", "update", "updation", "updating", "change", "set", "edit", "101", "102", "105"])
+        has_crm_action = any(w in prompt_lower for w in ["show", "view", "read", "profile", "record", "details", "customer", "delete", "remove", "update", "updation", "updating", "change", "set", "edit", "create", "add", "101", "102", "105"])
 
         if has_greeting and not has_crm_action:
             return {
@@ -155,7 +214,9 @@ class GeminiService:
         customer_id = int(cid_match.group(2)) if cid_match else default_customer_id
 
         # Determine operation
-        if any(w in prompt_lower for w in ["delete", "remove", "erase", "cancel"]):
+        if any(w in prompt_lower for w in ["create", "add new", "new customer", "register customer"]):
+            operation = "create"
+        elif any(w in prompt_lower for w in ["delete", "remove", "erase", "cancel"]):
             operation = "delete"
         elif any(w in prompt_lower for w in ["update", "updation", "updating", "change", "modify", "edit", "set"]):
             operation = "update"
@@ -171,13 +232,24 @@ class GeminiService:
         value = None
 
         if operation == "update":
+            # Extract explicit field if specified
             if "phone" in prompt_lower:
                 field = "phone"
                 phone_match = re.search(r'\b(\+?\d[-0-9\s]{7,15})\b', prompt)
-                value = phone_match.group(1).strip() if phone_match else "+1-555-9999"
+                value = phone_match.group(1).strip() if phone_match else None
             elif "email" in prompt_lower:
                 field = "email"
                 email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', prompt)
+                value = email_match.group(0) if email_match else None
+            elif "city" in prompt_lower:
+                field = "city"
+                city_match = re.search(r'city\s+(?:to|=|is)\s+([A-Za-z\s]+)', prompt, re.IGNORECASE)
+                value = city_match.group(1).strip() if city_match else None
+            elif "name" in prompt_lower:
+                field = "name"
+                name_match = re.search(r'name\s+(?:to|=|is)\s+([A-Za-z\s]+)', prompt, re.IGNORECASE)
+                value = name_match.group(1).strip() if name_match else None
+
                 value = email_match.group(0) if email_match else f"updated_{customer_id}@enterprise.com"
             elif "city" in prompt_lower:
                 field = "city"

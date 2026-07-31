@@ -95,9 +95,9 @@ def render_customer_card(cdata: Dict[str, Any]):
 
 
 def render_audit_logs_view():
-    """Renders real-time time-based audit log trail and security metrics."""
-    st.markdown("## **Audit Trail & Policy Governance**")
-    st.caption("Real-time audit log stream tracking all evaluation decisions.")
+    """Renders Administrator Dashboard with Audit Timeline, Analytics, and Security Threat Alerts."""
+    st.markdown("## **Administrator Governance Console**")
+    st.caption("System-wide audit trail, policy decision history, and real-time threat monitoring.")
 
     logs = []
     try:
@@ -118,39 +118,54 @@ def render_audit_logs_view():
     total_requests = len(logs)
     allowed_count = sum(1 for l in logs if l.get("allowed"))
     blocked_count = total_requests - allowed_count
-    threat_alerts = sum(1 for l in logs if "SECURITY ALERT" in l.get("reason", ""))
+    active_sessions = len(set(l.get("user") for l in logs if l.get("user")))
+    
+    # Track probing alerts (>3 blocks per user/agent session)
+    user_blocks = {}
+    for l in logs:
+        if not l.get("allowed"):
+            u_key = f"{l.get('user')} ({l.get('agent')})"
+            user_blocks[u_key] = user_blocks.get(u_key, 0) + 1
 
-    # Top KPI Stats Bar
-    m1, m2, m3, m4 = st.columns(4)
+    probing_alerts = [u for u, cnt in user_blocks.items() if cnt >= 3]
+
+    # Top KPI Analytics Cards Bar
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Total Requests", total_requests)
-    m2.metric("Allowed Operations", allowed_count)
-    m3.metric("Blocked Violations", blocked_count)
-    m4.metric("Security Alerts", threat_alerts)
+    m2.metric("Allowed Requests", allowed_count)
+    m3.metric("Blocked Requests", blocked_count)
+    m4.metric("Permission Violations", blocked_count)
+    m5.metric("Active Sessions", active_sessions)
 
     st.divider()
 
-    if threat_alerts > 0:
-        st.warning(f"**Security Alert**: Detected {threat_alerts} threat alert(s) exceeding policy violation threshold!")
+    # Bonus Feature: Security Alert display ONLY in Administrator Dashboard
+    if probing_alerts:
+        for alert_user in probing_alerts:
+            st.error(
+                f"**SECURITY ALERT**: Potential probing behavior detected! "
+                f"User/Agent **{alert_user}** has exceeded {user_blocks[alert_user]} failed security checks in this session!"
+            )
 
-    st.markdown("### **Live Audit Feed**")
+    st.markdown("### **Audit Timeline Console**")
 
     if not logs:
-        st.info("No audit logs recorded yet. Send queries in the CRM Assistant tab to populate the audit stream.")
+        st.info("No audit events recorded in database yet.")
         return
 
-    # Process logs for display table
+    # Process logs for Administrator table display
     table_data = []
     for l in logs:
-        status_str = "ALLOWED" if l.get("allowed") else "BLOCKED (403)"
+        decision_str = "ALLOWED" if l.get("allowed") else "BLOCKED"
         table_data.append({
-            "Log ID": f"LOG-{l.get('id')}",
-            "Timestamp (UTC)": l.get("timestamp"),
-            "User": l.get("user"),
-            "Role": str(l.get("agent")).upper(),
+            "Timestamp": l.get("timestamp"),
+            "Session User": l.get("user"),
+            "Agent Name": str(l.get("agent")).upper(),
+            "Tool Name": "crm",
             "Operation": str(l.get("operation")).upper(),
-            "Customer ID": str(l.get("customer_id")),
-            "Status": status_str,
-            "Policy Decision": l.get("reason")
+            "Customer Scope": f"#{l.get('customer_id')}",
+            "Decision": decision_str,
+            "Reason": l.get("reason")
         })
 
     st.dataframe(
@@ -158,4 +173,5 @@ def render_audit_logs_view():
         use_container_width=True,
         hide_index=True
     )
+
 

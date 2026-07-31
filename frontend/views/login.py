@@ -27,22 +27,11 @@ PREDEFINED_USERS_LOGIN = {
     120: {"id": 120, "customer_id": 120, "name": "Divya", "department": "Admin", "role": "admin_agent", "role_title": "Admin"},
 }
 
-def auto_login_from_query_params():
-    """Checks browser query params for persistent session restoration."""
-    if "authenticated" in st.session_state and st.session_state.authenticated:
-        return True
-
-    params = st.query_params
-    if "cid" in params:
-        try:
-            cid = int(params["cid"])
-            if cid in PREDEFINED_USERS_LOGIN:
-                st.session_state.authenticated = True
-                st.session_state.user = PREDEFINED_USERS_LOGIN[cid]
-                return True
-        except ValueError:
-            pass
-    return False
+ROLE_MAP = {
+    "Read Only Agent": {"role": "support_agent", "role_title": "Read Only Agent"},
+    "Read + Update Agent": {"role": "sales_agent", "role_title": "Read + Update Agent"},
+    "Full Access Agent": {"role": "admin_agent", "role_title": "Full Access Agent"},
+}
 
 def login_user_and_clear_session(user_data):
     """Sets session user state and wipes previous chat/trace history completely."""
@@ -54,22 +43,16 @@ def login_user_and_clear_session(user_data):
     st.rerun()
 
 def render_login_page():
-    """Renders Enterprise Login Page with Customer ID Authentication & Persistent Storage."""
-    if auto_login_from_query_params():
-        return
-
+    """Renders Session Context Initialization Page collecting User Name, Agent Role, and Session Customer Scope."""
     st.markdown("""
     <style>
-    .login-container {
-        max-width: 520px;
-        margin: 40px auto;
-        padding: 40px;
-        background: rgba(17, 24, 39, 0.9);
+    .init-card {
+        background: rgba(17, 24, 39, 0.85);
         backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 20px;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -78,42 +61,65 @@ def render_login_page():
     with col2:
         st.markdown(
             '<div style="text-align: center; margin-top: 20px; margin-bottom: 20px;">'
-            '<h1 style="background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.3rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px;">Enterprise CRM Portal</h1>'
-            '<p style="color: #9ca3af; font-size: 0.95rem;">Zero-Trust Security & Policy Gateway</p>'
+            '<h1 style="background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px;">Session Context Initialization</h1>'
+            '<p style="color: #9ca3af; font-size: 0.95rem;">Configure user identity and session scope for the Permission Proxy PDP</p>'
             '</div>',
             unsafe_allow_html=True
         )
 
-        st.markdown("### **Account Authentication**")
-        st.caption("Select your assigned account credentials (Customer ID 101 – 120).")
+        with st.container():
+            user_name = st.text_input("User Name", value="Shruthi", key="init_user_name")
+            
+            selected_role_label = st.selectbox(
+                "Agent Role",
+                ["Read Only Agent", "Read + Update Agent", "Full Access Agent"],
+                index=0,
+                key="init_agent_role"
+            )
+            
+            customer_scope_id = st.number_input(
+                "Session Customer Scope (Customer ID)",
+                min_value=101,
+                max_value=999,
+                value=101,
+                step=1,
+                key="init_customer_scope"
+            )
 
-        # Customer ID Selection / Input
-        user_options = {f"Customer {cid} - {u['name']} ({u['department']})": cid for cid, u in PREDEFINED_USERS_LOGIN.items()}
-        selected_user_text = st.selectbox(
-            "Account:",
-            list(user_options.keys()),
-            index=0,
-            key="login_user_select_box"
-        )
-        
-        selected_cid = user_options[selected_user_text]
+            st.markdown("<br/>", unsafe_allow_html=True)
 
-        st.markdown("<br/>", unsafe_allow_html=True)
-
-        # Login Action
-        if st.button("Login to Portal", use_container_width=True, key="login_submit_btn"):
-            login_user_and_clear_session(PREDEFINED_USERS_LOGIN[selected_cid])
+            if st.button("Initialize Session Context", use_container_width=True, key="btn_init_session"):
+                role_info = ROLE_MAP[selected_role_label]
+                user_data = {
+                    "id": int(customer_scope_id),
+                    "customer_id": int(customer_scope_id),
+                    "name": user_name.strip() if user_name.strip() else "User",
+                    "department": selected_role_label,
+                    "role": role_info["role"],
+                    "role_title": role_info["role_title"]
+                }
+                login_user_and_clear_session(user_data)
 
         st.divider()
-        st.markdown("#### **Quick Demo Accounts**")
+        st.markdown("#### **Preset Session Scenarios**")
         q_col1, q_col2, q_col3 = st.columns(3)
 
-        if q_col1.button("Support (ID 101)", use_container_width=True, key="quick_101"):
-            login_user_and_clear_session(PREDEFINED_USERS_LOGIN[101])
+        if q_col1.button("Read Only (ID 101)", use_container_width=True, key="quick_101"):
+            login_user_and_clear_session({
+                "id": 101, "customer_id": 101, "name": "Shruthi", "department": "Support",
+                "role": "support_agent", "role_title": "Read Only Agent"
+            })
 
-        if q_col2.button("Sales (ID 102)", use_container_width=True, key="quick_102"):
-            login_user_and_clear_session(PREDEFINED_USERS_LOGIN[102])
+        if q_col2.button("Read + Update (ID 102)", use_container_width=True, key="quick_102"):
+            login_user_and_clear_session({
+                "id": 102, "customer_id": 102, "name": "Kavin", "department": "Sales",
+                "role": "sales_agent", "role_title": "Read + Update Agent"
+            })
 
-        if q_col3.button("Admin (ID 120)", use_container_width=True, key="quick_120"):
-            login_user_and_clear_session(PREDEFINED_USERS_LOGIN[120])
+        if q_col3.button("Full Access (ID 120)", use_container_width=True, key="quick_120"):
+            login_user_and_clear_session({
+                "id": 120, "customer_id": 120, "name": "Divya", "department": "Admin",
+                "role": "admin_agent", "role_title": "Full Access Agent"
+            })
+
 
