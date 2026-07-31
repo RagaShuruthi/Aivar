@@ -27,17 +27,34 @@ class AgentRouter:
             from backend.logger import audit_logger
             logs = audit_logger.get_logs(limit=5)
             if not logs:
-                summary_text = "No recent audit history recorded yet."
+                summary_text = "No recent audit activity recorded yet."
             else:
                 formatted_lines = []
                 for l in logs:
-                    status_label = "ALLOWED" if l.get("allowed") else "BLOCKED"
-                    formatted_lines.append(
-                        f"• [{l.get('timestamp')}] User '{l.get('user')}' ({l.get('agent')}) -> {l.get('operation').upper()} on Customer #{l.get('customer_id')} ({status_label}): {l.get('reason')}"
-                    )
-                summary_text = "Recent Audit History:\n" + "\n".join(formatted_lines)
+                    u_name = l.get('user', 'User')
+                    op = l.get('operation', 'action').lower()
+                    cid = l.get('customer_id', '')
+                    is_allowed = l.get('allowed', False)
+                    status_str = "Allowed" if is_allowed else "Blocked (Role Restriction)"
+
+                    if is_allowed:
+                        if op == "update":
+                            detail = f"Updated details for Customer #{cid}"
+                        elif op == "delete":
+                            detail = f"Deleted Customer #{cid}"
+                        elif op == "create":
+                            detail = f"Created new record for Customer #{cid}"
+                        else:
+                            detail = f"Retrieved profile for Customer #{cid}"
+                    else:
+                        detail = f"Attempted {op} operation on Customer #{cid}"
+
+                    formatted_lines.append(f"• **{u_name}**: {detail} — *{status_str}*")
+
+                summary_text = "Here is the recent activity audit history:\n\n" + "\n".join(formatted_lines)
             
             return True, summary_text, {"audit_history": logs, "summary": summary_text}, 0, "audit_service"
+
 
         if operation == "permission_info":
             resolved_role = active_role_override or "support_agent"

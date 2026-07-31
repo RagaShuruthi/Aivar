@@ -53,8 +53,9 @@ class GeminiService:
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        self.model_name = "gemini-1.5-flash"
-        self.fallback_model_name = "gemini-2.0-flash"
+        self.model_name = "gemini-2.0-flash"
+        self.fallback_model_name = "gemini-2.5-flash"
+
         self.is_configured = False
 
         if HAS_GENAI and self.api_key and not self.api_key.startswith("YOUR_") and self.api_key.strip() != "":
