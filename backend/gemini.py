@@ -53,7 +53,8 @@ class GeminiService:
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = "gemini-1.5-flash"
+        self.fallback_model_name = "gemini-2.0-flash"
         self.is_configured = False
 
         if HAS_GENAI and self.api_key and not self.api_key.startswith("YOUR_") and self.api_key.strip() != "":
@@ -65,25 +66,46 @@ class GeminiService:
                     genai_legacy.configure(api_key=self.api_key)
                     self.model = genai_legacy.GenerativeModel(self.model_name)
                 self.is_configured = True
-                print("[SUCCESS] Real Google Gemini LLM API activated successfully!")
+                print(f"[SUCCESS] Real Google Gemini LLM API activated ({self.model_name})!")
             except Exception as e:
                 self.is_configured = False
                 print(f"[WARNING] Failed to initialize Gemini API: {e}")
         else:
             if not self.api_key or self.api_key.startswith("YOUR_"):
-                print("[INFO] No valid GEMINI_API_KEY found in .env. Running in Fallback Deterministic NLP mode.")
+                print("[INFO] No valid GEMINI_API_KEY found in .env. Running in Fallback Deterministic Engine mode.")
+
+    def _call_gemini_llm(self, prompt_text: str) -> Optional[str]:
+        """Executes LLM request with automatic model fallback on rate limit (HTTP 429)."""
+        if not self.is_configured:
+            return None
+
+        models_to_try = [self.model_name, self.fallback_model_name]
+        for m_name in models_to_try:
+            try:
+                if GENAI_TYPE == "genai":
+                    res = self.client.models.generate_content(
+                        model=m_name,
+                        contents=prompt_text
+                    )
+                    return res.text.strip()
+                else:
+                    legacy_model = genai_legacy.GenerativeModel(m_name)
+                    res = legacy_model.generate_content(prompt_text)
+                    return res.text.strip()
+            except Exception as e:
+                err_msg = str(e)
+                if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                    print(f"[WARNING] Gemini Rate Limit hit on model {m_name}. Trying fallback...")
+                    continue
+                else:
+                    print(f"[WARNING] Gemini API Error on {m_name}: {err_msg}")
+                    break
+        return None
 
     def detect_intent(self, prompt: str, default_customer_id: int = 101, default_agent: str = "support_agent") -> Dict[str, Any]:
         """
         Step 1: Intent Detection.
-        Converts natural language user prompt into structured JSON tool intent across 7 categories:
-        1. Retrieve Customer (read)
-        2. Update Customer (update)
-        3. Delete Customer (delete)
-        4. Create Customer (create)
-        5. Audit History (audit)
-        6. Permission Question (permission_info)
-        7. General Conversation (chat)
+        Converts natural language user prompt into structured JSON tool intent across 7 categories.
         """
         prompt_clean = prompt.strip()
         prompt_lower = prompt_clean.lower()
@@ -149,22 +171,14 @@ class GeminiService:
             Default customer_id if unspecified is {default_customer_id}.
             User Input: "{prompt}"
             """
-            try:
-                if GENAI_TYPE == "genai":
-                    response = self.client.models.generate_content(
-                        model=self.model_name,
-                        contents=sys_prompt
-                    )
-                    raw_text = response.text
-                else:
-                    response = self.model.generate_content(sys_prompt)
-                    raw_text = response.text
-
-                cleaned = re.sub(r'```json\s*|\s*```', '', raw_text).strip()
-                intent = json.loads(cleaned)
-                return intent
-            except Exception as e:
-                print(f"[WARNING] Gemini Intent Extraction fallback: {e}")
+            llm_res = self._call_gemini_llm(sys_prompt)
+            if llm_res:
+                try:
+                    cleaned = re.sub(r'```json\s*|\s*```', '', llm_res).strip()
+                    intent = json.loads(cleaned)
+                    return intent
+                except Exception as e:
+                    print(f"[WARNING] Gemini Intent JSON parse fallback: {e}")
 
         # Fallback Deterministic NLP Parser
         return self._fallback_intent_parser(prompt, default_customer_id, default_agent)
@@ -255,17 +269,6 @@ class GeminiService:
                 name_match = re.search(r'name\s+(?:to|=|is)\s+([A-Za-z\s]+)', prompt, re.IGNORECASE)
                 value = name_match.group(1).strip() if name_match else None
 
-                value = email_match.group(0) if email_match else f"updated_{customer_id}@enterprise.com"
-            elif "city" in prompt_lower:
-                field = "city"
-                value = "Chicago"
-            elif "name" in prompt_lower:
-                field = "name"
-                value = "Updated Customer Name"
-            else:
-                field = "status"
-                value = "Active VIP"
-
         return {
             "agent": default_agent,
             "tool": tool,
@@ -292,41 +295,31 @@ class GeminiService:
         prompt_lower = prompt.lower().strip()
 
         if self.is_configured:
-            try:
-                if is_chat_only:
-                    nl_prompt = f"""
-                    You are a helpful, professional Enterprise CRM Virtual Assistant.
-                    User Input: "{prompt}"
-                    
-                    Respond naturally, politely, and contextually to the user's conversational message (e.g. greetings, acknowledgments like "okay done", "thanks", "got it", "great"). Keep response concise, friendly, and business professional.
-                    """
-                else:
-                    nl_prompt = f"""
-                    You are a helpful, professional Enterprise CRM Virtual Assistant.
-                    User Prompt: "{prompt}"
-                    Action Result: Allowed={allowed}
-                    Technical Decision Details: "{reason}"
-                    Data Outcome: {json.dumps(crm_data) if crm_data else "None"}
+            if is_chat_only:
+                nl_prompt = f"""
+                You are a helpful, professional Enterprise CRM Virtual Assistant.
+                User Input: "{prompt}"
+                
+                Respond naturally, politely, and contextually to the user's conversational message (e.g. greetings, acknowledgments like "okay done", "thanks", "got it", "great"). Keep response concise, friendly, and business professional.
+                """
+            else:
+                nl_prompt = f"""
+                You are a helpful, professional Enterprise CRM Virtual Assistant.
+                User Prompt: "{prompt}"
+                Action Result: Allowed={allowed}
+                Technical Decision Details: "{reason}"
+                Data Outcome: {json.dumps(crm_data) if crm_data else "None"}
 
-                    STRICT RESPONSE RULES:
-                    1. Respond in natural, polite, business-professional English.
-                    2. NEVER expose code variable names, technical agent IDs (e.g. 'support_agent', 'sales_agent'), raw JSON, or bracketed lists.
-                    3. If Allowed: State the result of the user's request clearly and politely.
-                    4. If Blocked: Explain in clear, simple human terms that the action is not permitted for their user role, without technical jargon.
-                    5. Do NOT include prefixes like "Request Blocked:" or "Permission Denied:". Speak directly to the user as a helpful virtual assistant.
-                    """
-
-                if GENAI_TYPE == "genai":
-                    response = self.client.models.generate_content(
-                        model=self.model_name,
-                        contents=nl_prompt
-                    )
-                    return response.text.strip()
-                else:
-                    response = self.model.generate_content(nl_prompt)
-                    return response.text.strip()
-            except Exception:
-                pass
+                STRICT RESPONSE RULES:
+                1. Respond in natural, polite, business-professional English.
+                2. NEVER expose code variable names, technical agent IDs (e.g. 'support_agent', 'sales_agent'), raw JSON, or bracketed lists.
+                3. If Allowed: State the result of the user's request clearly and politely. Include the retrieved customer details if relevant.
+                4. If Blocked: Explain in clear, simple human terms that the action is not permitted for their user role, without technical jargon.
+                5. Do NOT include prefixes like "Request Blocked:" or "Permission Denied:". Speak directly to the user as a helpful virtual assistant.
+                """
+            llm_text = self._call_gemini_llm(nl_prompt)
+            if llm_text:
+                return llm_text
 
         # Fallback Natural Language Response Generation for Chat / Conversational Queries
         if is_chat_only:
@@ -337,12 +330,17 @@ class GeminiService:
         # Fallback Natural Language Response Generation for CRM Actions
         if allowed:
             if crm_data:
-                if "deleted_customer_id" in crm_data or operation.lower() == "delete":
+                if "summary" in crm_data:
+                    return crm_data["summary"]
+                elif "permissions" in crm_data:
+                    return reason
+                elif "deleted_customer_id" in crm_data or operation.lower() == "delete":
                     return f"Customer record #{crm_data.get('deleted_customer_id', crm_data.get('id'))} has been permanently deleted from the CRM."
                 elif operation.lower() == "update":
                     return f"Customer profile for {crm_data.get('name', 'Customer')} (ID #{crm_data.get('id')}) has been updated successfully."
-                return f"Customer profile for {crm_data.get('name', 'Customer')} (ID #{crm_data.get('id')}) retrieved successfully."
-            return "Your request was processed successfully."
+                elif "name" in crm_data:
+                    return f"Customer profile for {crm_data.get('name')} (ID #{crm_data.get('id')}) retrieved successfully. Status: {crm_data.get('status')}, Email: {crm_data.get('email')}."
+            return f"Your request for customer #{target_customer_id or 101} was processed successfully."
         else:
             return _humanize_denial_reason(reason, operation, target_customer_id)
 
