@@ -284,25 +284,33 @@ class GeminiService:
         Step 2: Natural Language Response Generator.
         Translates raw CRM execution results or Permission Proxy denials into professional natural language responses.
         """
-        if is_chat_only:
-            return "Hello! I am your Enterprise AI CRM Assistant. How can I help you today? You can ask me to view customer profiles, update record details, or manage customer accounts depending on your role."
+        prompt_lower = prompt.lower().strip()
 
         if self.is_configured:
             try:
-                nl_prompt = f"""
-                You are a helpful, professional Enterprise CRM Virtual Assistant.
-                User Prompt: "{prompt}"
-                Action Result: Allowed={allowed}
-                Technical Decision Details: "{reason}"
-                Data Outcome: {json.dumps(crm_data) if crm_data else "None"}
+                if is_chat_only:
+                    nl_prompt = f"""
+                    You are a helpful, professional Enterprise CRM Virtual Assistant.
+                    User Input: "{prompt}"
+                    
+                    Respond naturally, politely, and contextually to the user's conversational message (e.g. greetings, acknowledgments like "okay done", "thanks", "got it", "great"). Keep response concise, friendly, and business professional.
+                    """
+                else:
+                    nl_prompt = f"""
+                    You are a helpful, professional Enterprise CRM Virtual Assistant.
+                    User Prompt: "{prompt}"
+                    Action Result: Allowed={allowed}
+                    Technical Decision Details: "{reason}"
+                    Data Outcome: {json.dumps(crm_data) if crm_data else "None"}
 
-                STRICT RESPONSE RULES:
-                1. Respond in natural, polite, business-professional English.
-                2. NEVER expose code variable names, technical agent IDs (e.g. 'support_agent', 'sales_agent'), raw JSON, or bracketed lists.
-                3. If Allowed: State the result of the user's request clearly and politely.
-                4. If Blocked: Explain in clear, simple human terms that the action is not permitted for their user role, without technical jargon.
-                5. Do NOT include prefixes like "Request Blocked:" or "Permission Denied:". Speak directly to the user as a helpful virtual assistant.
-                """
+                    STRICT RESPONSE RULES:
+                    1. Respond in natural, polite, business-professional English.
+                    2. NEVER expose code variable names, technical agent IDs (e.g. 'support_agent', 'sales_agent'), raw JSON, or bracketed lists.
+                    3. If Allowed: State the result of the user's request clearly and politely.
+                    4. If Blocked: Explain in clear, simple human terms that the action is not permitted for their user role, without technical jargon.
+                    5. Do NOT include prefixes like "Request Blocked:" or "Permission Denied:". Speak directly to the user as a helpful virtual assistant.
+                    """
+
                 if GENAI_TYPE == "genai":
                     response = self.client.models.generate_content(
                         model=self.model_name,
@@ -315,7 +323,13 @@ class GeminiService:
             except Exception:
                 pass
 
-        # Fallback Natural Language Response Generation
+        # Fallback Natural Language Response Generation for Chat / Conversational Queries
+        if is_chat_only:
+            if any(w in prompt_lower for w in ["okay", "done", "got it", "thanks", "thank you", "great", "perfect", "alright", "cool"]):
+                return "You're welcome! Let me know if you need to view, update, or manage any customer records."
+            return "Hello! I am your Enterprise AI CRM Assistant. How can I help you today? You can ask me to view customer profiles, update record details, or check audit history depending on your user role."
+
+        # Fallback Natural Language Response Generation for CRM Actions
         if allowed:
             if crm_data:
                 if "deleted_customer_id" in crm_data or operation.lower() == "delete":
@@ -326,6 +340,7 @@ class GeminiService:
             return "Your request was processed successfully."
         else:
             return _humanize_denial_reason(reason, operation, target_customer_id)
+
 
 
 
