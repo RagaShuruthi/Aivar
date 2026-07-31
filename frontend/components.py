@@ -45,11 +45,9 @@ def render_left_sidebar():
         f"""
         <div class="glass-card">
             <div style="font-size:0.75rem; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Session User</div>
-            <div style="font-weight:700; font-size:1.15rem; color:#60a5fa;">{user['name']}</div>
-            <div style="font-size:0.8rem; color:#9ca3af; margin-top:2px;">ID: {user['customer_id']}</div>
             <div style="font-size:0.85rem; color:#a855f7; font-weight:600; margin-top:6px;">Department: {user['department']}</div>
-            <div style="font-size:0.85rem; color:#10b981; font-weight:600; margin-top:2px;">Role: <b>{user['role_title']}</b></div>
         </div>
+
         """,
         unsafe_allow_html=True
     )

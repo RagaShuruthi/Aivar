@@ -132,13 +132,6 @@ def render_login_page():
 
         with st.container():
             user_name = st.text_input("User Name", value=chosen["name"], key="init_user_name")
-            
-            selected_role_label = st.selectbox(
-                "User Role",
-                ["Read Only", "Read + Update", "Full Access"],
-                index=["Read Only", "Read + Update", "Full Access"].index(chosen["role_label"]),
-                key="init_user_role"
-            )
 
             customer_scope_id = st.number_input(
                 "Session Customer Scope (Customer ID)",
@@ -152,16 +145,16 @@ def render_login_page():
             st.markdown("<br/>", unsafe_allow_html=True)
 
             if st.button("Initialize Session Context", use_container_width=True, key="btn_init_session"):
-                role_info = ROLE_MAP[selected_role_label]
                 user_data = {
                     "id": int(customer_scope_id),
                     "customer_id": int(customer_scope_id),
                     "name": user_name.strip() if user_name.strip() else chosen["name"],
-                    "department": selected_role_label,
-                    "role": role_info["role"],
-                    "role_title": role_info["role_title"]
+                    "department": chosen["department"],
+                    "role": chosen["role"],
+                    "role_title": chosen["role_title"]
                 }
                 login_user_and_clear_session(user_data)
+
 
         st.divider()
         st.markdown("#### **Quick User Login**")
