@@ -64,9 +64,10 @@ if st.sidebar.button("Re-initialize Session Context", use_container_width=True, 
 if interface_mode == "User Portal (AI Chat)":
     st.markdown('<div class="main-title">User Portal</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="subtitle">Session User: <b>{active_user["name"]}</b> | Agent Role: <b>{active_user["role_title"]}</b> | Session Customer Scope: <b>#{active_user["customer_id"]}</b></div>',
+        f'<div class="subtitle">Session User: <b>{active_user["name"]}</b> | User Role: <b>{active_user["role_title"]}</b> | Session Customer Scope: <b>#{active_user["customer_id"]}</b></div>',
         unsafe_allow_html=True
     )
+
 
     # Quick Action Chips
     st.markdown("**Sample Actions:**")
@@ -247,10 +248,12 @@ if interface_mode == "User Portal (AI Chat)":
 
             payload = {
                 "user": active_user["name"],
+                "user_role": active_user["role"],
                 "agent_role": active_user["role"],
                 "prompt": prompt_to_send,
                 "session_customer_id": active_user["customer_id"]
             }
+
 
             try:
                 res = requests.post(f"{API_BASE_URL}/chat", json=payload, timeout=10)

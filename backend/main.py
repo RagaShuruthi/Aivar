@@ -23,8 +23,9 @@ app.add_middleware(
 )
 
 class ChatRequest(BaseModel):
-    user: str = Field("Alice Smith", example="Alice Smith")
-    agent_role: str = Field("support_agent", example="support_agent")
+    user: str = Field("Shruthi", example="Shruthi")
+    user_role: Optional[str] = Field(None, example="support_agent")
+    agent_role: Optional[str] = Field(None, example="support_agent")
     prompt: str = Field(..., example="Show customer 101")
     session_customer_id: int = Field(101, example=101)
 
@@ -54,29 +55,32 @@ def get_audit_logs(limit: int = 100):
 @app.post("/api/v1/chat", response_model=ChatResponse, tags=["AI CRM Pipeline"])
 def process_chat_pipeline(payload: ChatRequest):
     """
-    Main Agentic Execution Pipeline:
+    Main Execution Pipeline:
     1. Gemini Intent Detection (Prompt -> Structured JSON)
-    2. Router Dispatch (Selects target AI Agent)
+    2. Router User Role Identification & Dispatch
     3. Permission Proxy Enforcement (Validates manifest.json & Data Scope)
     4. Mock CRM Execution (Only if Allowed)
     5. Audit Logging (Immutable SQLite Log)
-    6. Gemini Response Generator (Natural Language Response)
+    6. Natural Language Response Synthesis
     """
     try:
+        active_user_role = payload.user_role or payload.agent_role or "support_agent"
+
         # Step 1: Gemini Intent Detection
         structured_intent = gemini_service.detect_intent(
             prompt=payload.prompt,
             default_customer_id=payload.session_customer_id,
-            default_agent=payload.agent_role
+            default_agent=active_user_role
         )
 
-        # Step 2 & 3 & 4 & 5: Router -> Agent Dispatcher -> Permission Proxy -> CRM -> Audit Log
+        # Step 2 & 3 & 4 & 5: Router User Role Identification -> Permission Proxy -> CRM -> Audit Log
         allowed, reason, crm_data, audit_id, executed_agent = agent_router_service.dispatch(
             user=payload.user,
             structured_intent=structured_intent,
             session_customer_id=payload.session_customer_id,
-            active_role_override=payload.agent_role
+            active_role_override=active_user_role
         )
+
 
         # Step 6: Gemini Natural Language Response Generator
         nl_response = gemini_service.generate_nl_response(

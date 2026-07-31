@@ -91,11 +91,12 @@ def render_login_page():
             user_name = st.text_input("User Name", value="Shruthi", key="init_user_name")
             
             selected_role_label = st.selectbox(
-                "Agent Role",
+                "User Role",
                 ["Read Only Agent", "Read + Update Agent", "Full Access Agent"],
                 index=0,
-                key="init_agent_role"
+                key="init_user_role"
             )
+
             
             customer_scope_id = st.number_input(
                 "Session Customer Scope (Customer ID)",
