@@ -195,99 +195,98 @@ if interface_mode == "User Portal (AI Chat)":
                 st.session_state.pending_update = None
                 prompt_to_send = final_prompt
 
-            # Check if this is an incomplete update action prompt that needs follow-up
+        # Check if this is an incomplete update action prompt that needs follow-up
+        import re
+        prompt_low = prompt_to_send.lower()
+        is_update_action = bool(re.search(r'\b(update|modify|change|edit|set)\b', prompt_low))
+        is_show_query = any(w in prompt_low for w in ["show", "view", "read", "display", "see", "what was", "history", "updated data", "updated profile", "that updated"])
+
+        if is_update_action and not is_show_query:
+
             import re
-            prompt_low = prompt_to_send.lower()
-            is_update_action = bool(re.search(r'\b(update|modify|change|edit|set)\b', prompt_low))
-            is_show_query = any(w in prompt_low for w in ["show", "view", "read", "display", "see", "what was", "history", "updated data", "updated profile", "that updated"])
+            has_cid = re.search(r'\b(\d{3})\b', prompt_low)
+            has_field = any(f in prompt_low for f in ["phone", "email", "name", "city", "status"])
+            has_val = False
+            if has_field:
+                if "phone" in prompt_low and re.search(r'\b(\+?\d[-0-9\s]{7,15})\b', prompt_to_send):
+                    has_val = True
+                elif "email" in prompt_low and "@" in prompt_to_send:
+                    has_val = True
+                elif ("city" in prompt_low or "name" in prompt_low) and (" to " in prompt_low or " is " in prompt_low or "=" in prompt_low):
+                    has_val = True
 
-            if is_update_action and not is_show_query:
+            if not (has_cid and has_field and has_val):
+                # Information missing! Start follow-up sequence
+                st.session_state.messages.append({"role": "user", "text": prompt_to_send})
+                cid = int(has_cid.group(1)) if has_cid else None
+                fld = "phone" if "phone" in prompt_low else ("email" if "email" in prompt_low else ("city" if "city" in prompt_low else None))
+                val = None
 
-                import re
-                has_cid = re.search(r'\b(\d{3})\b', prompt_low)
-                has_field = any(f in prompt_low for f in ["phone", "email", "name", "city", "status"])
-                has_val = False
-                if has_field:
-                    if "phone" in prompt_low and re.search(r'\b(\+?\d[-0-9\s]{7,15})\b', prompt_to_send):
-                        has_val = True
-                    elif "email" in prompt_low and "@" in prompt_to_send:
-                        has_val = True
-                    elif ("city" in prompt_low or "name" in prompt_low) and (" to " in prompt_low or " is " in prompt_low or "=" in prompt_low):
-                        has_val = True
+                if not cid:
+                    st.session_state.pending_update = {"step": "customer_id", "customer_id": None, "field": fld, "value": val}
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "allowed": True,
+                        "response_text": "Which customer would you like to update? (Please specify customer ID, e.g. 101, 105)"
+                    })
+                    st.rerun()
+                elif not fld:
+                    st.session_state.pending_update = {"step": "field", "customer_id": cid, "field": None, "value": val}
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "allowed": True,
+                        "response_text": f"Which field for customer #{cid} would you like to update? (Options: phone, email, name, city, status)"
+                    })
+                    st.rerun()
+                elif not has_val:
+                    st.session_state.pending_update = {"step": "value", "customer_id": cid, "field": fld, "value": None}
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "allowed": True,
+                        "response_text": f"What should the new value for {fld} be?"
+                    })
+                    st.rerun()
 
-                if not (has_cid and has_field and has_val):
-                    # Information missing! Start follow-up sequence
-                    st.session_state.messages.append({"role": "user", "text": prompt_to_send})
-                    cid = int(has_cid.group(1)) if has_cid else None
-                    fld = "phone" if "phone" in prompt_low else ("email" if "email" in prompt_low else ("city" if "city" in prompt_low else None))
-                    val = None
+        # Normal request execution via Permission Proxy
+        st.session_state.messages.append({"role": "user", "text": prompt_to_send})
 
-                    if not cid:
-                        st.session_state.pending_update = {"step": "customer_id", "customer_id": None, "field": fld, "value": val}
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "allowed": True,
-                            "response_text": "Which customer would you like to update? (Please specify customer ID, e.g. 101, 105)"
-                        })
-                        st.rerun()
-                    elif not fld:
-                        st.session_state.pending_update = {"step": "field", "customer_id": cid, "field": None, "value": val}
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "allowed": True,
-                            "response_text": f"Which field for customer #{cid} would you like to update? (Options: phone, email, name, city, status)"
-                        })
-                        st.rerun()
-                    elif not has_val:
-                        st.session_state.pending_update = {"step": "value", "customer_id": cid, "field": fld, "value": None}
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "allowed": True,
-                            "response_text": f"What should the new value for {fld} be?"
-                        })
-                        st.rerun()
-
-            # Normal request execution via Permission Proxy
-            st.session_state.messages.append({"role": "user", "text": prompt_to_send})
-
-            payload = {
-                "user": active_user["name"],
-                "user_role": active_user["role"],
-                "agent_role": active_user["role"],
-                "prompt": prompt_to_send,
-                "session_customer_id": active_user["customer_id"]
-            }
+        payload = {
+            "user": active_user["name"],
+            "user_role": active_user["role"],
+            "agent_role": active_user["role"],
+            "prompt": prompt_to_send,
+            "session_customer_id": active_user["customer_id"]
+        }
 
 
-            try:
-                res = requests.post(f"{API_BASE_URL}/chat", json=payload, timeout=10)
-                if res.status_code == 200:
-                    pipeline_res = res.json()
-                else:
-                    pipeline_res = {
-                        "allowed": False,
-                        "reason": f"API Error {res.status_code}: {res.text}",
-                        "response_text": f"Error communicating with backend API.",
-                        "data": None
-                    }
-            except Exception as e:
+        try:
+            res = requests.post(f"{API_BASE_URL}/chat", json=payload, timeout=10)
+            if res.status_code == 200:
+                pipeline_res = res.json()
+            else:
                 pipeline_res = {
                     "allowed": False,
-                    "reason": f"Backend Connection Error: {str(e)}",
-                    "response_text": "Backend Connection Failed: Ensure FastAPI is running on port 8000.",
+                    "reason": f"API Error {res.status_code}: {res.text}",
+                    "response_text": f"Error communicating with backend API.",
                     "data": None
                 }
+        except Exception as e:
+            pipeline_res = {
+                "allowed": False,
+                "reason": f"Backend Connection Error: {str(e)}",
+                "response_text": "Backend Connection Failed: Ensure FastAPI is running on port 8000.",
+                "data": None
+            }
 
-            st.session_state.messages.append({
-                "role": "assistant",
-                "allowed": pipeline_res.get("allowed", False),
-                "response_text": pipeline_res.get("response_text", ""),
-                "data": pipeline_res.get("data")
-            })
-            st.rerun()
+        st.session_state.messages.append({
+            "role": "assistant",
+            "allowed": pipeline_res.get("allowed", False),
+            "response_text": pipeline_res.get("response_text", ""),
+            "data": pipeline_res.get("data")
+        })
+        st.session_state.last_pipeline_response = pipeline_res
+        st.rerun()
 
 # --- INTERFACE 2: ADMINISTRATOR DASHBOARD ---
 elif interface_mode == "Administrator Dashboard":
     render_audit_logs_view()
-
-
