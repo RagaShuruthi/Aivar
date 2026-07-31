@@ -22,6 +22,25 @@ except ImportError:
         HAS_GENAI = False
 
 
+def _humanize_denial_reason(reason: str, operation: str = "read", customer_id: Optional[int] = None) -> str:
+    """Converts internal policy denial reasons into polite, natural conversational text."""
+    is_security_alert = "SECURITY ALERT" in reason or "probing" in reason
+    
+    if "Outside session scope" in reason or "session_customer_only" in reason or "restricted to session customer" in reason:
+        base_msg = f"You are only authorized to access your own customer profile. Access to Customer #{customer_id} is restricted."
+    elif operation.lower() == "delete":
+        base_msg = "You do not have permission to delete customer records. This action requires administrative privileges."
+    elif operation.lower() == "update":
+        base_msg = "You do not have permission to modify customer details for this account."
+    else:
+        base_msg = "You do not have permission to execute this action under your current user role."
+
+    if is_security_alert:
+        base_msg += " Multiple unauthorized attempts have been recorded for security governance."
+
+    return f"{base_msg} No changes were made to the CRM database."
+
+
 class GeminiService:
     """
     Google Gemini Service.
@@ -53,7 +72,6 @@ class GeminiService:
         else:
             if not self.api_key or self.api_key.startswith("YOUR_"):
                 print("[INFO] No valid GEMINI_API_KEY found in .env. Running in Fallback Deterministic NLP mode.")
-
 
     def detect_intent(self, prompt: str, default_customer_id: int = 101, default_agent: str = "support_agent") -> Dict[str, Any]:
         """
@@ -146,7 +164,6 @@ class GeminiService:
         else:
             operation = "chat"
 
-
         tool = "none" if operation == "chat" else "crm"
 
         # Determine field & value for update
@@ -188,7 +205,8 @@ class GeminiService:
         reason: str,
         crm_data: Optional[Dict[str, Any]] = None,
         is_chat_only: bool = False,
-        operation: str = "read"
+        operation: str = "read",
+        target_customer_id: Optional[int] = None
     ) -> str:
         """
         Step 2: Natural Language Response Generator.
@@ -200,15 +218,18 @@ class GeminiService:
         if self.is_configured:
             try:
                 nl_prompt = f"""
-                You are a professional Enterprise AI Assistant.
+                You are a helpful, professional Enterprise CRM Virtual Assistant.
                 User Prompt: "{prompt}"
-                Permission Proxy Result: Allowed={allowed}, Reason="{reason}"
-                CRM Execution Data: {json.dumps(crm_data) if crm_data else "None"}
+                Action Result: Allowed={allowed}
+                Technical Decision Details: "{reason}"
+                Data Outcome: {json.dumps(crm_data) if crm_data else "None"}
 
-                Instructions:
-                - If Allowed: Provide a polite, helpful summary of the CRM action outcome.
-                - If Blocked: State clearly that the action was blocked by governance policy, explaining the reason professionally.
-                - Keep response concise and business professional.
+                STRICT RESPONSE RULES:
+                1. Respond in natural, polite, business-professional English.
+                2. NEVER expose code variable names, technical agent IDs (e.g. 'support_agent', 'sales_agent'), raw JSON, or bracketed lists.
+                3. If Allowed: State the result of the user's request clearly and politely.
+                4. If Blocked: Explain in clear, simple human terms that the action is not permitted for their user role, without technical jargon.
+                5. Do NOT include prefixes like "Request Blocked:" or "Permission Denied:". Speak directly to the user as a helpful virtual assistant.
                 """
                 if GENAI_TYPE == "genai":
                     response = self.client.models.generate_content(
@@ -228,11 +249,12 @@ class GeminiService:
                 if "deleted_customer_id" in crm_data or operation.lower() == "delete":
                     return f"Customer record #{crm_data.get('deleted_customer_id', crm_data.get('id'))} has been permanently deleted from the CRM."
                 elif operation.lower() == "update":
-                    return f"Customer record #{crm_data.get('id')} ({crm_data.get('name')}) has been updated successfully."
-                return f"Customer profile for {crm_data.get('name', 'Customer')} (#{crm_data.get('id')}) retrieved successfully. Status: {crm_data.get('status')}, Email: {crm_data.get('email')}."
-            return f"Action processed successfully: {reason}"
+                    return f"Customer profile for {crm_data.get('name', 'Customer')} (ID #{crm_data.get('id')}) has been updated successfully."
+                return f"Customer profile for {crm_data.get('name', 'Customer')} (ID #{crm_data.get('id')}) retrieved successfully."
+            return "Your request was processed successfully."
         else:
-            return f"Request Blocked: {reason} No action has been performed on the CRM database."
+            return _humanize_denial_reason(reason, operation, target_customer_id)
+
 
 
 # Singleton Gemini Service Instance

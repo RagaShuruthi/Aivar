@@ -85,8 +85,10 @@ def process_chat_pipeline(payload: ChatRequest):
             reason=reason,
             crm_data=crm_data,
             is_chat_only=(structured_intent.get("operation") == "chat"),
-            operation=structured_intent.get("operation", "read")
+            operation=structured_intent.get("operation", "read"),
+            target_customer_id=structured_intent.get("customer_id")
         )
+
 
 
         return ChatResponse(
