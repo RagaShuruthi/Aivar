@@ -33,6 +33,23 @@ ROLE_MAP = {
     "Full Access Agent": {"role": "admin_agent", "role_title": "Full Access Agent"},
 }
 
+def auto_login_from_query_params():
+    """Checks browser query params for persistent session restoration."""
+    if "authenticated" in st.session_state and st.session_state.authenticated:
+        return True
+
+    params = st.query_params
+    if "cid" in params:
+        try:
+            cid = int(params["cid"])
+            if cid in PREDEFINED_USERS_LOGIN:
+                st.session_state.authenticated = True
+                st.session_state.user = PREDEFINED_USERS_LOGIN[cid]
+                return True
+        except ValueError:
+            pass
+    return False
+
 def login_user_and_clear_session(user_data):
     """Sets session user state and wipes previous chat/trace history completely."""
     st.session_state.authenticated = True
@@ -44,6 +61,9 @@ def login_user_and_clear_session(user_data):
 
 def render_login_page():
     """Renders Session Context Initialization Page collecting User Name, Agent Role, and Session Customer Scope."""
+    if auto_login_from_query_params():
+        return
+
     st.markdown("""
     <style>
     .init-card {
