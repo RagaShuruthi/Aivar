@@ -60,32 +60,32 @@ def login_user_and_clear_session(user_data):
     st.rerun()
 
 THREE_USERS = {
-    "Shruthi (Read Only Agent - Customer #101)": {
+    "Shruthi - Support (#101)": {
         "id": 101,
         "customer_id": 101,
         "name": "Shruthi",
         "department": "Support",
         "role": "support_agent",
-        "role_label": "Read Only Agent",
-        "role_title": "Read Only Agent"
+        "role_label": "Read Only",
+        "role_title": "Read Only"
     },
-    "Kavin (Read + Update Agent - Customer #102)": {
+    "Kavin - Sales (#102)": {
         "id": 102,
         "customer_id": 102,
         "name": "Kavin",
         "department": "Sales",
         "role": "sales_agent",
-        "role_label": "Read + Update Agent",
-        "role_title": "Read + Update Agent"
+        "role_label": "Read + Update",
+        "role_title": "Read & Update"
     },
-    "Divya (Full Access Agent - Customer #120)": {
+    "Divya - Admin (#120)": {
         "id": 120,
         "customer_id": 120,
         "name": "Divya",
         "department": "Admin",
         "role": "admin_agent",
-        "role_label": "Full Access Agent",
-        "role_title": "Full Access Agent"
+        "role_label": "Full Access",
+        "role_title": "Full Access"
     }
 }
 
@@ -118,7 +118,7 @@ def render_login_page():
         )
 
         selected_user_key = st.selectbox(
-            "Select System User:",
+            "Select User:",
             list(THREE_USERS.keys()),
             index=0,
             key="init_three_users_select"
@@ -131,8 +131,8 @@ def render_login_page():
             
             selected_role_label = st.selectbox(
                 "User Role",
-                ["Read Only Agent", "Read + Update Agent", "Full Access Agent"],
-                index=["Read Only Agent", "Read + Update Agent", "Full Access Agent"].index(chosen["role_label"]),
+                ["Read Only", "Read + Update", "Full Access"],
+                index=["Read Only", "Read + Update", "Full Access"].index(chosen["role_label"]),
                 key="init_user_role"
             )
 
@@ -160,17 +160,14 @@ def render_login_page():
                 login_user_and_clear_session(user_data)
 
         st.divider()
-        st.markdown("#### **Quick Single-Click User Login**")
+        st.markdown("#### **Quick User Login**")
         q_col1, q_col2, q_col3 = st.columns(3)
 
-        if q_col1.button("Shruthi\n(Read Only #101)", use_container_width=True, key="quick_101"):
-            login_user_and_clear_session(THREE_USERS["Shruthi (Read Only Agent - Customer #101)"])
+        if q_col1.button("Shruthi\n(Support #101)", use_container_width=True, key="quick_101"):
+            login_user_and_clear_session(THREE_USERS["Shruthi - Support (#101)"])
 
-        if q_col2.button("Kavin\n(Read+Update #102)", use_container_width=True, key="quick_102"):
-            login_user_and_clear_session(THREE_USERS["Kavin (Read + Update Agent - Customer #102)"])
+        if q_col2.button("Kavin\n(Sales #102)", use_container_width=True, key="quick_102"):
+            login_user_and_clear_session(THREE_USERS["Kavin - Sales (#102)"])
 
-        if q_col3.button("Divya\n(Full Access #120)", use_container_width=True, key="quick_120"):
-            login_user_and_clear_session(THREE_USERS["Divya (Full Access Agent - Customer #120)"])
-
-
-
+        if q_col3.button("Divya\n(Admin #120)", use_container_width=True, key="quick_120"):
+            login_user_and_clear_session(THREE_USERS["Divya - Admin (#120)"])
