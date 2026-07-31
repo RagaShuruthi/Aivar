@@ -45,7 +45,7 @@ class GeminiLLM:
         self.model_name = "gemini-1.5-flash"
         self.is_configured = False
 
-        if HAS_GENAI and self.api_key:
+        if HAS_GENAI and self.api_key and not self.api_key.startswith("YOUR_") and self.api_key.strip() != "":
             try:
                 if GENAI_TYPE == "genai":
                     self.client = genai.Client(api_key=self.api_key)
@@ -58,8 +58,9 @@ class GeminiLLM:
                 self.is_configured = False
                 print(f"[WARNING] Failed to initialize Gemini API: {e}")
         else:
-            if not self.api_key:
-                print("[INFO] No GEMINI_API_KEY found in .env. Running in Fallback Deterministic NLP mode.")
+            if not self.api_key or self.api_key.startswith("YOUR_"):
+                print("[INFO] No valid GEMINI_API_KEY found in .env. Running in Fallback Deterministic NLP mode.")
+
 
     def extract_tool_intent(self, prompt: str, agent_id: str = "support_agent", default_customer_id: int = 101) -> Dict[str, Any]:
         """
@@ -148,10 +149,11 @@ class GeminiLLM:
         # Determine operation
         if any(w in prompt_lower for w in ["delete", "remove", "erase", "drop"]):
             operation = "delete"
-        elif any(w in prompt_lower for w in ["update", "change", "modify", "edit", "rename", "set"]):
+        elif any(w in prompt_lower for w in ["update", "updation", "updating", "change", "modify", "edit", "rename", "set"]):
             operation = "update"
         else:
             operation = "read"
+
 
         # Extract customer ID if present (e.g. 101, 102, 205)
         match = re.search(r'\b([1-9][0-9]{2,3})\b', prompt)

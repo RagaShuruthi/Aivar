@@ -37,7 +37,7 @@ class GeminiService:
         self.model_name = "gemini-2.0-flash"
         self.is_configured = False
 
-        if HAS_GENAI and self.api_key:
+        if HAS_GENAI and self.api_key and not self.api_key.startswith("YOUR_") and self.api_key.strip() != "":
             try:
                 os.environ["GOOGLE_API_KEY"] = self.api_key
                 if GENAI_TYPE == "genai":
@@ -51,8 +51,9 @@ class GeminiService:
                 self.is_configured = False
                 print(f"[WARNING] Failed to initialize Gemini API: {e}")
         else:
-            if not self.api_key:
-                print("[INFO] No GEMINI_API_KEY found in .env. Running in Fallback Deterministic NLP mode.")
+            if not self.api_key or self.api_key.startswith("YOUR_"):
+                print("[INFO] No valid GEMINI_API_KEY found in .env. Running in Fallback Deterministic NLP mode.")
+
 
     def detect_intent(self, prompt: str, default_customer_id: int = 101, default_agent: str = "support_agent") -> Dict[str, Any]:
         """
@@ -119,7 +120,7 @@ class GeminiService:
         # Check if conversational greeting
         conversational_triggers = ["hey", "hi", "hello", "greetings", "good morning", "good evening", "help", "who are you", "what can you do", "thanks", "thank you"]
         has_greeting = any(g in prompt_lower for g in conversational_triggers)
-        has_crm_action = any(w in prompt_lower for w in ["show", "view", "read", "profile", "record", "details", "customer", "delete", "remove", "update", "change", "set"])
+        has_crm_action = any(w in prompt_lower for w in ["show", "view", "read", "profile", "record", "details", "customer", "delete", "remove", "update", "updation", "updating", "change", "set", "edit", "101", "102", "105"])
 
         if has_greeting and not has_crm_action:
             return {
@@ -138,12 +139,13 @@ class GeminiService:
         # Determine operation
         if any(w in prompt_lower for w in ["delete", "remove", "erase", "cancel"]):
             operation = "delete"
-        elif any(w in prompt_lower for w in ["update", "change", "modify", "set"]):
+        elif any(w in prompt_lower for w in ["update", "updation", "updating", "change", "modify", "edit", "set"]):
             operation = "update"
         elif has_crm_action or cid_match:
             operation = "read"
         else:
             operation = "chat"
+
 
         tool = "none" if operation == "chat" else "crm"
 
